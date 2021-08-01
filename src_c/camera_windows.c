@@ -277,6 +277,8 @@ _select_source_type(pgCameraObject* self, IMFMediaType **mp)
     int requested_diagonal = DISTANCE(self->width, self->height);
     UINT64 fps_max_ratio;
 
+    printf("inside _select 1\n");
+
     /* Find out how many native media types there are
      * (different resolution modes, mostly) */
     while(1) {
@@ -291,6 +293,8 @@ _select_source_type(pgCameraObject* self, IMFMediaType **mp)
         RELEASE(media_type);
     }
 
+    printf("inside _select 2\n");
+
     if (!type_count) {
         PyErr_SetString(pgExc_SDLError,
                         "Could not find any video types on this camera");
@@ -303,6 +307,8 @@ _select_source_type(pgCameraObject* self, IMFMediaType **mp)
         hr = E_OUTOFMEMORY;
         HANDLEHR(hr);
     }
+
+    printf("inside _select 3\n");
 
     /* This is interesting
      * https://social.msdn.microsoft.com/Forums/windowsdesktop/en-US/9d6a8704-764f-46df-a41c-8e9d84f7f0f3/mjpg-encoded-media-type-is-not-available-for-usbuvc-webcameras-after-windows-10-version-1607-os
@@ -345,6 +351,8 @@ _select_source_type(pgCameraObject* self, IMFMediaType **mp)
         }
     }
 
+    printf("inside _select 4\n");
+
     for (int i=0; i < type_count; i++) {
         current_difference = diagonal_distances[i] - requested_diagonal;
         current_difference = abs(current_difference);
@@ -354,6 +362,8 @@ _select_source_type(pgCameraObject* self, IMFMediaType **mp)
         }
     }
 
+    printf("inside _select 5\n");
+
     if (index == -1) {
         PyErr_SetString(pgExc_SDLError,
                         "Could not find a valid video type in any supported"
@@ -362,12 +372,16 @@ _select_source_type(pgCameraObject* self, IMFMediaType **mp)
         goto cleanup;
     }
 
+    printf("inside _select 6\n");
+
     hr = native_types[index]->lpVtbl->GetUINT64(native_types[index],
                                                 &MF_MT_FRAME_SIZE, &size);
     HANDLEHR(hr);
 
     self->width = size >> 32;
     self->height = size << 32 >> 32;
+
+    printf("inside _select 7\n");
 
     /* More debug printfs that could be handy in the future */
     /*
@@ -386,6 +400,8 @@ _select_source_type(pgCameraObject* self, IMFMediaType **mp)
                                                 &MF_MT_FRAME_RATE,
                                                 fps_max_ratio);
     HANDLEHR(hr);
+
+    printf("inside _select 8\n");
 
     *mp = native_types[index];
     goto cleanup;
@@ -622,11 +638,44 @@ windows_open_device(pgCameraObject *self)
     CHECKHR(hr);
     */
 
+
+    /*
     hr = MFCreateSourceReaderFromMediaSource(source, NULL, &reader);
     self->reader = reader;
     RELEASE(source);
     HANDLEHR(hr);
+    */
 
+    IMFAttributes *rsa;
+    MFCreateAttributes(&rsa, 1);
+    rsa->lpVtbl->SetUINT32(rsa, &MF_SOURCE_READER_ENABLE_VIDEO_PROCESSING, 1);
+
+    hr = MFCreateSourceReaderFromURL(L"music video.mp4", rsa, &reader);
+    self->reader = reader;
+    RELEASE(rsa);
+    HANDLEHR(hr);
+
+    printf("made it 1\n");
+
+    hr = MFCreateMediaType(&conv_type);
+    HANDLEHR(hr);
+
+    hr = conv_type->lpVtbl->SetGUID(conv_type, &MF_MT_MAJOR_TYPE,
+                                    &MFMediaType_Video);
+    HANDLEHR(hr);
+
+    hr = conv_type->lpVtbl->SetGUID(conv_type, &MF_MT_SUBTYPE,
+                                        &MFVideoFormat_RGB32);
+    HANDLEHR(hr);
+
+    printf("made it 2\n");
+
+    hr = self->reader->lpVtbl->SetCurrentMediaType(self->reader, FIRST_VIDEO, NULL, conv_type);
+    HANDLEHR(hr);
+
+    self->pixelformat = MFVideoFormat_RGB32.Data1;
+
+    /*
     if(!_select_source_type(self, &source_type)) {
         return 0;
     }
@@ -663,8 +712,9 @@ windows_open_device(pgCameraObject *self)
 
     hr = MFCreateMemoryBuffer(info.cbSize, &self->buf);
     HANDLEHR(hr);
+    */
 
-    self->t_handle = CreateThread(NULL, 0, update_function, self, 0, NULL);
+    //self->t_handle = CreateThread(NULL, 0, update_function, self, 0, NULL);
 
     self->open = 1; /* set here, since this shouldn't happen on error */
     self->t_error = S_OK;
@@ -680,9 +730,9 @@ int
 windows_close_device(pgCameraObject *self)
 {
     self->open = 0;
-    if (self->t_handle) {
-        WaitForSingleObject(self->t_handle, 3000);
-    }
+    //if (self->t_handle) {
+    //    WaitForSingleObject(self->t_handle, 3000);
+    //}
 
     RELEASE(self->reader);
     RELEASE(self->transform);
@@ -781,7 +831,19 @@ windows_read_frame(pgCameraObject *self, SDL_Surface *surf)
         return 0;
     };
 
+    IMFSample *sample = NULL;
+    DWORD pdwStreamFlags;
+
+    hr = self->reader->lpVtbl->ReadSample(self->reader, FIRST_VIDEO, 0, 0,
+                                    &pdwStreamFlags, NULL, &sample);
+    CHECKHR(hr);
+
+    RELEASE(self->buf)
+    hr = sample->lpVtbl->ConvertToContiguousBuffer(sample, &self->buf);
+    CHECKHR(hr);
+
     if (self->buf) {
+        printf("PROCESSING DATA\n");
         BYTE *buf_data;
         DWORD buf_max_length;
         DWORD buf_length;
@@ -790,6 +852,7 @@ windows_read_frame(pgCameraObject *self, SDL_Surface *surf)
         CHECKHR(hr);
 
         if (!windows_process_image(self, buf_data, buf_length, surf)) {
+            printf("FAILING TO PROCESS IMAGE\n");
             return 0;
         }
 
