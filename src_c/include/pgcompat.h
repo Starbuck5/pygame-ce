@@ -23,18 +23,8 @@ typedef uint32_t Uint32;
 typedef uint8_t Uint8;
 #endif /* no SDL */
 
-#if defined(SDL_VERSION_ATLEAST)
-
-#if SDL_VERSION_ATLEAST(2, 0, 18)
-#define PG_GetTicks SDL_GetTicks64
-#else
-#define PG_GetTicks SDL_GetTicks
-#endif /* SDL_VERSION_ATLEAST(2, 0, 18) */
-
 #ifndef SDL_MOUSEWHEEL_FLIPPED
 #define NO_SDL_MOUSEWHEEL_FLIPPED
 #endif
-
-#endif /* defined(SDL_VERSION_ATLEAST) */
 
 #endif /* ~defined(PGCOMPAT_H) */
