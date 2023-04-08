@@ -450,10 +450,34 @@ PG_CreateSurface(int width, int height, Uint32 format)
 }
 
 static Uint32
-PG_GetGlobalMouseState(float *x, float *y)
+PG_GetMouseState(float *x, float *y)
 {
     int ix, iy;
     Uint32 res = SDL_GetMouseState(&ix, &iy);
+
+    *x = (float)ix;
+    *y = (float)iy;
+
+    return res;
+}
+
+static Uint32
+PG_GetGlobalMouseState(float *x, float *y)
+{
+    int ix, iy;
+    Uint32 res = SDL_GetGlobalMouseState(&ix, &iy);
+
+    *x = (float)ix;
+    *y = (float)iy;
+
+    return res;
+}
+
+static Uint32
+PG_GetRelativeMouseState(float *x, float *y)
+{
+    int ix, iy;
+    Uint32 res = SDL_GetRelativeMouseState(&ix, &iy);
 
     *x = (float)ix;
     *y = (float)iy;
@@ -466,13 +490,53 @@ PG_GetGlobalMouseState(float *x, float *y)
 
 #define PG_CreateWindowWithPosition SDL_CreateWindow
 
-#define PG_CreateDefaultBackendRenderer(win, flags) SDL_CreateRenderer(win, -1, flags)
+#define PG_CreateDefaultBackendRenderer(win, flags) \
+    SDL_CreateRenderer(win, -1, flags)
 
 #define PG_GL_GetSwapInterval SDL_GL_GetSwapInterval
 #define PG_GL_GetWindowSizeInPixels SDL_GL_GetDrawableSize
 #define PG_NOSDL3_HACK_WINDOW_FULLSCREEN_DESKTOP SDL_WINDOW_FULLSCREEN_DESKTOP
 
 #define PG_GetNumVideoDisplays SDL_GetNumVideoDisplays
+
+static int
+PG_ShowCursor(void)
+{
+    return SDL_ShowCursor(SDL_ENABLE);
+}
+
+static int
+PG_HideCursor(void)
+{
+    return SDL_ShowCursor(SDL_DISABLE);
+}
+
+static SDL_bool
+PG_CursorVisible(void)
+{
+    return SDL_ShowCursor(SDL_QUERY) ? SDL_TRUE : SDL_FALSE;
+}
+
+static SDL_bool
+PG_EventEnabled(Uint32 type)
+{
+    return SDL_EventState(type, SDL_QUERY);
+}
+
+static void
+PG_SetEventEnabled(Uint32 type, SDL_bool enabled)
+{
+    SDL_EventState(type, enabled ? SDL_ENABLE : SDL_IGNORE);
+}
+
+#define PG_GetJoystickInstanceGUID SDL_JoystickGetDeviceGUID
+
+#define PG_GAXIS caxis
+#define PG_GBUTTON cbutton
+#define PG_GDEVICE cdevice
+#define PG_GTOUCHPAD ctouchpad
+#define PG_GSENSOR csensor
+
 #endif
 
 #if IS_SDLv3
@@ -877,7 +941,10 @@ PG_NOSDL3_SetWindowGammaRamp(SDL_Window *window, const Uint16 *red,
 }
 
 static int
-PG_NOSDL3_CalculateGammaRamp(float gamma, Uint16 *ramp) {return 0; /* no-op*/}
+PG_NOSDL3_CalculateGammaRamp(float gamma, Uint16 *ramp)
+{
+    return 0; /* no-op*/
+}
 
 #include <SDL_syswm.h>
 
@@ -895,10 +962,13 @@ PG_GetWindowWMInfo(SDL_Window *win, SDL_SysWMinfo *info)
 #define PG_CreateSurface SDL_CreateSurface
 
 #define PG_GetGlobalMouseState SDL_GetGlobalMouseState
+#define PG_GetMouseState SDL_GetMouseState
+#define PG_GetRelativeMouseState SDL_GetRelativeMouseState
 
 #define PG_CreateWindowWithPosition SDL_CreateWindowWithPosition
 
-#define PG_CreateDefaultBackendRenderer(win, flags) SDL_CreateRenderer(win, NULL, flags)
+#define PG_CreateDefaultBackendRenderer(win, flags) \
+    SDL_CreateRenderer(win, NULL, flags)
 
 #define PG_NOSDL3_HACK_WINDOW_FULLSCREEN_DESKTOP SDL_WINDOW_FULLSCREEN
 
@@ -914,13 +984,29 @@ static int
 PG_GetNumVideoDisplays()
 {
     int count;
-    SDL_DisplayID* displays = SDL_GetDisplays(&count);
+    SDL_DisplayID *displays = SDL_GetDisplays(&count);
     if (displays == NULL) {
         return -1;
     }
-    SDL_free(displays);   
+    SDL_free(displays);
     return count;
 }
+
+#define PG_ShowCursor SDL_ShowCursor
+#define PG_HideCursor SDL_HideCursor
+#define PG_CursorVisible SDL_CursorVisible
+
+#define PG_EventEnabled SDL_EventEnabled
+#define PG_SetEventEnabled SDL_SetEventEnabled
+
+#define PG_GetJoystickInstanceGUID SDL_GetJoystickInstanceGUID
+
+#define PG_GAXIS gaxis
+#define PG_GBUTTON gbutton
+#define PG_GDEVICE gdevice
+#define PG_GTOUCHPAD gtouchpad
+#define PG_GSENSOR gsensor
+
 #endif
 
 /* SDL 1.2 constants removed from SDL 2 */

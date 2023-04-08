@@ -362,7 +362,9 @@ _pg_pgevent_proxify_helper(Uint32 type, Uint8 proxify)
         _PG_HANDLE_PROXIFY(KEYUP);
         _PG_HANDLE_PROXIFY(KEYMAPCHANGED);
         _PG_HANDLE_PROXIFY(JOYAXISMOTION);
+#if IS_SDLv2
         _PG_HANDLE_PROXIFY(JOYBALLMOTION);
+#endif
         _PG_HANDLE_PROXIFY(JOYHATMOTION);
         _PG_HANDLE_PROXIFY(JOYBUTTONDOWN);
         _PG_HANDLE_PROXIFY(JOYBUTTONUP);
@@ -427,9 +429,9 @@ _pg_pgevent_deproxify(Uint32 type)
 static int
 _pg_translate_windowevent(void *_, SDL_Event *event)
 {
-    if (PG_IS_WINDOWEVENT(event)) {
+    if (PG_IS_WINDOWEVENT(event->type)) {
         event->type = PGE_WINDOWSHOWN + PG_EXTRACT_WINDOWEVENT_TYPE(event) - 1;
-        return SDL_EventState(_pg_pgevent_proxify(event->type), SDL_QUERY);
+        return PG_EventEnabled(_pg_pgevent_proxify(event->type));
     }
     return 1;
 }
@@ -469,7 +471,8 @@ static int SDLCALL
 pg_event_filter(void *_, SDL_Event *event)
 {
     SDL_Event newdownevent, newupevent, newevent = *event;
-    int x, y, i;
+    float x, y;
+    int i;
 
     if (PG_IS_WINDOWEVENT(event->type)) {
         /* DON'T filter SDL_WINDOWEVENTs here. If we delete events, they
@@ -553,27 +556,41 @@ pg_event_filter(void *_, SDL_Event *event)
         if (!event->wheel.y && !event->wheel.x)
             return 0;
 
-        SDL_GetMouseState(&x, &y);
+        PG_GetMouseState(&x, &y);
         /* Generate a MouseButtonDown event and MouseButtonUp for
          * compatibility. https://wiki.libsdl.org/SDL_MouseWheelEvent
          */
         newdownevent.type = PG_EVENT_MOUSE_BUTTON_DOWN;
+#if IS_SDLv3
         newdownevent.button.x = x;
         newdownevent.button.y = y;
+#else
+        newdownevent.button.x = (int)x;
+        newdownevent.button.y = (int)y;
+#endif
         newdownevent.button.state = SDL_PRESSED;
         newdownevent.button.clicks = 1;
         newdownevent.button.which = event->button.which;
 
         newupevent.type = PG_EVENT_MOUSE_BUTTON_UP;
+#if IS_SDLv3
         newupevent.button.x = x;
         newupevent.button.y = y;
+#else
+        newupevent.button.x = (int)x;
+        newupevent.button.y = (int)y;
+#endif
         newupevent.button.state = SDL_RELEASED;
         newupevent.button.clicks = 1;
         newupevent.button.which = event->button.which;
 
         /* Use a for loop to simulate multiple events, because SDL 1
          * works that way */
+#if IS_SDLv3
+        for (i = 0; i < abs((int)event->wheel.y); i++) {
+#else
         for (i = 0; i < abs(event->wheel.y); i++) {
+#endif
             /* Do this in the loop because button.button is mutated before it
              * is posted from this filter */
             if (event->wheel.y > 0) {
@@ -592,7 +609,7 @@ pg_event_filter(void *_, SDL_Event *event)
             return RAISE(pgExc_SDLError, SDL_GetError()), 0;
         */
     }
-    return SDL_EventState(_pg_pgevent_proxify(event->type), SDL_QUERY);
+    return PG_EventEnabled(_pg_pgevent_proxify(event->type));
 }
 
 /* The two keyrepeat functions below modify state accessed by the event filter,
@@ -714,8 +731,10 @@ _pg_name_from_eventtype(int type)
             return "MouseButtonUp";
         case PG_EVENT_JOYSTICK_AXIS_MOTION:
             return "JoyAxisMotion";
+#if IS_SDLv2
         case SDL_JOYBALLMOTION:
             return "JoyBallMotion";
+#endif
         case PG_EVENT_JOYSTICK_HAT_MOTION:
             return "JoyHatMotion";
         case PG_EVENT_JOYSTICK_BUTTON_UP:
@@ -742,8 +761,10 @@ _pg_name_from_eventtype(int type)
             return "FingerDown";
         case PG_EVENT_FINGER_UP:
             return "FingerUp";
+#if IS_SDLv2
         case SDL_MULTIGESTURE:
             return "MultiGesture";
+#endif
         case PG_EVENT_MOUSE_WHEEL:
             return "MouseWheel";
         case PG_EVENT_TEXT_INPUT:
@@ -849,18 +870,19 @@ static PyObject *
 get_joy_guid(int device_index)
 {
     char strguid[33];
-    SDL_JoystickGUID guid = SDL_JoystickGetDeviceGUID(device_index);
+    SDL_JoystickGUID guid = PG_GetJoystickInstanceGUID(device_index);
 
     PG_GetJoystickGUIDString(guid, strguid, 33);
     return PyUnicode_FromString(strguid);
 }
 
+#if IS_SDLv2
 /** Try to insert the instance ID for a new device into the joystick mapping.
  */
 void
 _joy_map_add(int device_index)
 {
-    int instance_id = (int)SDL_JoystickGetDeviceInstanceID(device_index);
+    int instance_id = (int)SDL_JoystickGetDeviceGUID(device_index);
     PyObject *k, *v;
     if (instance_id != -1) {
         k = PyLong_FromLong(instance_id);
@@ -872,6 +894,7 @@ _joy_map_add(int device_index)
         Py_XDECREF(v);
     }
 }
+#endif
 
 /** Look up a device ID for an instance ID. */
 PyObject *
@@ -949,7 +972,8 @@ dict_from_event(SDL_Event *event)
                     state = SDL_APPACTIVE;
                     break;
                 default:
-                    assert(PG_EXTRACT_WINDOWEVENT_TYPE(event) == PG_EVENT_WINDOW_RESTORED);
+                    assert(PG_EXTRACT_WINDOWEVENT_TYPE(event) ==
+                           PG_EVENT_WINDOW_RESTORED);
                     gain = 1;
                     state = SDL_APPACTIVE;
             }
@@ -1006,6 +1030,7 @@ dict_from_event(SDL_Event *event)
             _pg_insobj(dict, "value",
                        PyFloat_FromDouble(event->jaxis.value / 32767.0));
             break;
+#if IS_SDLv2
         case SDL_JOYBALLMOTION:
             _pg_insobj(dict, "joy", _joy_map_instance(event->jaxis.which));
             _pg_insobj(dict, "instance_id",
@@ -1014,6 +1039,7 @@ dict_from_event(SDL_Event *event)
             obj = Py_BuildValue("(ii)", event->jball.xrel, event->jball.yrel);
             _pg_insobj(dict, "rel", obj);
             break;
+#endif
         case PG_EVENT_JOYSTICK_HAT_MOTION:
             _pg_insobj(dict, "joy", _joy_map_instance(event->jaxis.which));
             _pg_insobj(dict, "instance_id",
@@ -1075,6 +1101,7 @@ dict_from_event(SDL_Event *event)
             _pg_insobj(dict, "pressure",
                        PyFloat_FromDouble(event->tfinger.dy));
             break;
+#if IS_SDLv2
         case SDL_MULTIGESTURE:
             /* https://wiki.libsdl.org/SDL_MultiGestureEvent */
             _pg_insobj(dict, "touch_id",
@@ -1088,6 +1115,7 @@ dict_from_event(SDL_Event *event)
             _pg_insobj(dict, "num_fingers",
                        PyLong_FromLong(event->mgesture.numFingers));
             break;
+#endif
         case PG_EVENT_MOUSE_WHEEL:
             /* https://wiki.libsdl.org/SDL_MouseWheelEvent */
 #ifndef NO_SDL_MOUSEWHEEL_FLIPPED
@@ -1097,24 +1125,33 @@ dict_from_event(SDL_Event *event)
 #else
             _pg_insobj(dict, "flipped", PyBool_FromLong(0));
 #endif
+#if IS_SDLv2
             _pg_insobj(dict, "x", PyLong_FromLong(event->wheel.x));
             _pg_insobj(dict, "y", PyLong_FromLong(event->wheel.y));
+#else
+            _pg_insobj(dict, "x", PyLong_FromLong((int)event->wheel.x));
+            _pg_insobj(dict, "y", PyLong_FromLong((int)event->wheel.y));
+#endif
 
-#if SDL_VERSION_ATLEAST(2, 0, 18)
+#if IS_SDLv3
+            _pg_insobj(dict, "precise_x",
+                       PyFloat_FromDouble((double)event->wheel.x));
+            _pg_insobj(dict, "precise_y",
+                       PyFloat_FromDouble((double)event->wheel.y));
+#elif SDL_VERSION_ATLEAST(2, 0, 18)
             _pg_insobj(dict, "precise_x",
                        PyFloat_FromDouble((double)event->wheel.preciseX));
             _pg_insobj(dict, "precise_y",
                        PyFloat_FromDouble((double)event->wheel.preciseY));
-
-#else /* ~SDL_VERSION_ATLEAST(2, 0, 18) */
+#else  /* ~SDL_VERSION_ATLEAST(2, 0, 18) */
             /* fallback to regular x and y when SDL version used does not
              * support precise fields */
             _pg_insobj(dict, "precise_x",
                        PyFloat_FromDouble((double)event->wheel.x));
             _pg_insobj(dict, "precise_y",
                        PyFloat_FromDouble((double)event->wheel.y));
-
 #endif /* ~SDL_VERSION_ATLEAST(2, 0, 18) */
+
             _pg_insobj(
                 dict, "touch",
                 PyBool_FromLong((event->wheel.which == SDL_TOUCH_MOUSEID)));
@@ -1145,24 +1182,27 @@ dict_from_event(SDL_Event *event)
         case PG_EVENT_GAMEPAD_AXIS_MOTION:
             /* https://wiki.libsdl.org/SDL_ControllerAxisEvent */
             _pg_insobj(dict, "instance_id",
-                       PyLong_FromLong(event->caxis.which));
-            _pg_insobj(dict, "axis", PyLong_FromLong(event->caxis.axis));
-            _pg_insobj(dict, "value", PyLong_FromLong(event->caxis.value));
+                       PyLong_FromLong(event->PG_GAXIS.which));
+            _pg_insobj(dict, "axis", PyLong_FromLong(event->PG_GAXIS.axis));
+            _pg_insobj(dict, "value", PyLong_FromLong(event->PG_GAXIS.value));
             break;
         case SDL_CONTROLLERBUTTONDOWN:
         case PG_EVENT_GAMEPAD_BUTTON_UP:
             /* https://wiki.libsdl.org/SDL_ControllerButtonEvent */
             _pg_insobj(dict, "instance_id",
-                       PyLong_FromLong(event->cbutton.which));
-            _pg_insobj(dict, "button", PyLong_FromLong(event->cbutton.button));
+                       PyLong_FromLong(event->PG_GBUTTON.which));
+            _pg_insobj(dict, "button",
+                       PyLong_FromLong(event->PG_GBUTTON.button));
             break;
         case PG_EVENT_GAMEPAD_ADDED:
             _pg_insobj(dict, "device_index",
-                       PyLong_FromLong(event->cdevice.which));
+                       PyLong_FromLong(event->PG_GBUTTON.which));
             _pg_insobj(dict, "guid", get_joy_guid(event->jdevice.which));
             break;
         case PG_EVENT_JOYSTICK_ADDED:
+#if IS_SDLv2
             _joy_map_add(event->jdevice.which);
+#endif
             _pg_insobj(dict, "device_index",
                        PyLong_FromLong(event->jdevice.which));
             _pg_insobj(dict, "guid", get_joy_guid(event->jdevice.which));
@@ -1171,7 +1211,7 @@ dict_from_event(SDL_Event *event)
         case PG_EVENT_GAMEPAD_REMAPPED:
             /* https://wiki.libsdl.org/SDL_ControllerDeviceEvent */
             _pg_insobj(dict, "instance_id",
-                       PyLong_FromLong(event->cdevice.which));
+                       PyLong_FromLong(event->PG_GDEVICE.which));
             break;
         case PG_EVENT_JOYSTICK_REMOVED:
             _joy_map_discard(event->jdevice.which);
@@ -1183,15 +1223,15 @@ dict_from_event(SDL_Event *event)
         case PG_EVENT_GAMEPAD_TOUCHPAD_MOTION:
         case PG_EVENT_GAMEPAD_TOUCHPAD_UP:
             _pg_insobj(dict, "instance_id",
-                       PyLong_FromLong(event->ctouchpad.which));
+                       PyLong_FromLong(event->PG_GTOUCHPAD.which));
             _pg_insobj(dict, "touch_id",
-                       PyLong_FromLongLong(event->ctouchpad.touchpad));
+                       PyLong_FromLongLong(event->PG_GTOUCHPAD.touchpad));
             _pg_insobj(dict, "finger_id",
-                       PyLong_FromLongLong(event->ctouchpad.finger));
-            _pg_insobj(dict, "x", PyFloat_FromDouble(event->ctouchpad.x));
-            _pg_insobj(dict, "y", PyFloat_FromDouble(event->ctouchpad.y));
+                       PyLong_FromLongLong(event->PG_GTOUCHPAD.finger));
+            _pg_insobj(dict, "x", PyFloat_FromDouble(event->PG_GTOUCHPAD.x));
+            _pg_insobj(dict, "y", PyFloat_FromDouble(event->PG_GTOUCHPAD.y));
             _pg_insobj(dict, "pressure",
-                       PyFloat_FromDouble(event->ctouchpad.pressure));
+                       PyFloat_FromDouble(event->PG_GTOUCHPAD.pressure));
             break;
 #endif /*SDL_VERSION_ATLEAST(2, 0, 14)*/
 
@@ -1568,7 +1608,7 @@ set_grab(PyObject *self, PyObject *arg)
     if (win) {
         if (doit) {
             SDL_SetWindowGrab(win, SDL_TRUE);
-            if (SDL_ShowCursor(SDL_QUERY) == SDL_DISABLE)
+            if (!PG_CursorVisible())
                 SDL_SetRelativeMouseMode(1);
             else
                 SDL_SetRelativeMouseMode(0);
@@ -2084,7 +2124,7 @@ pg_event_post(PyObject *self, PyObject *obj)
         return RAISE(PyExc_TypeError, "argument must be an Event object");
 
     e = (pgEventObject *)obj;
-    if (SDL_EventState(_pg_pgevent_proxify(e->type), SDL_QUERY) == SDL_IGNORE)
+    if (!PG_EventEnabled(_pg_pgevent_proxify(e->type)))
         Py_RETURN_FALSE;
 
     pgEvent_FillUserEvent(e, &event);
@@ -2112,7 +2152,7 @@ pg_event_set_allowed(PyObject *self, PyObject *obj)
     if (obj == Py_None) {
         int i;
         for (i = PG_EVENT_FIRST; i < PG_EVENT_LAST; i++) {
-            SDL_EventState(i, SDL_ENABLE);
+            PG_SetEventEnabled(i, SDL_TRUE);
         }
     }
     else {
@@ -2126,7 +2166,7 @@ pg_event_set_allowed(PyObject *self, PyObject *obj)
                 Py_DECREF(seq);
                 return NULL;
             }
-            SDL_EventState(_pg_pgevent_proxify(type), SDL_ENABLE);
+            PG_SetEventEnabled(_pg_pgevent_proxify(type), SDL_FALSE);
         }
         Py_DECREF(seq);
     }
@@ -2145,7 +2185,7 @@ pg_event_set_blocked(PyObject *self, PyObject *obj)
         int i;
         /* Start at PGPOST_EVENTBEGIN */
         for (i = PGPOST_EVENTBEGIN; i < PG_EVENT_LAST; i++) {
-            SDL_EventState(i, SDL_IGNORE);
+            PG_SetEventEnabled(i, SDL_FALSE);
         }
     }
     else {
@@ -2159,14 +2199,16 @@ pg_event_set_blocked(PyObject *self, PyObject *obj)
                 Py_DECREF(seq);
                 return NULL;
             }
-            SDL_EventState(_pg_pgevent_proxify(type), SDL_IGNORE);
+            PG_SetEventEnabled(_pg_pgevent_proxify(type), SDL_FALSE);
         }
         Py_DECREF(seq);
     }
     /* Never block SDL_WINDOWEVENT, we need them for translation */
+#if IS_SDLv2
     SDL_EventState(SDL_WINDOWEVENT, SDL_ENABLE);
+#endif
     /* Never block PGE_KEYREPEAT too, its needed for pygame internal use */
-    SDL_EventState(PGE_KEYREPEAT, SDL_ENABLE);
+    PG_SetEventEnabled(PGE_KEYREPEAT, SDL_TRUE);
     Py_RETURN_NONE;
 }
 
@@ -2189,8 +2231,7 @@ pg_event_get_blocked(PyObject *self, PyObject *obj)
             Py_DECREF(seq);
             return NULL;
         }
-        if (SDL_EventState(_pg_pgevent_proxify(type), SDL_QUERY) ==
-            SDL_IGNORE) {
+        if (!PG_EventEnabled(_pg_pgevent_proxify(type))) {
             isblocked = 1;
             break;
         }

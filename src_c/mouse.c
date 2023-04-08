@@ -65,10 +65,10 @@ mouse_set_pos(PyObject *self, PyObject *args)
 static PyObject *
 mouse_get_pos(PyObject *self, PyObject *_null)
 {
-    int x, y;
+    float x, y;
 
     VIDEO_INIT_CHECK();
-    SDL_GetMouseState(&x, &y);
+    PG_GetMouseState(&x, &y);
 
     {
         SDL_Window *sdlWindow = pg_GetDefaultWindow();
@@ -80,34 +80,34 @@ mouse_get_pos(PyObject *self, PyObject *_null)
             SDL_RenderGetScale(sdlRenderer, &scalex, &scaley);
             SDL_RenderGetViewport(sdlRenderer, &vprect);
 
-            x = (int)(x / scalex);
-            y = (int)(y / scaley);
+            x = x / scalex;
+            y = y / scaley;
 
-            x -= vprect.x;
-            y -= vprect.y;
+            x -= (float)vprect.x;
+            y -= (float)vprect.y;
 
-            if (x < 0)
-                x = 0;
-            if (x >= vprect.w)
-                x = vprect.w - 1;
+            if (x < 0.f)
+                x = 0.f;
+            if (x >= (float)vprect.w)
+                x = (float)(vprect.w - 1);
             if (y < 0)
-                y = 0;
-            if (y >= vprect.h)
-                y = vprect.h - 1;
+                y = 0.f;
+            if (y >= (float)vprect.h)
+                y = (float)(vprect.h - 1);
         }
     }
 
-    return pg_tuple_couple_from_values_int(x, y);
+    return pg_tuple_couple_from_values_int((int)x, (int)y);
 }
 
 static PyObject *
 mouse_get_rel(PyObject *self, PyObject *_null)
 {
-    int x, y;
+    float x, y;
 
     VIDEO_INIT_CHECK();
 
-    SDL_GetRelativeMouseState(&x, &y);
+    PG_GetRelativeMouseState(&x, &y);
 
     /*
         SDL_Window *sdlWindow = pg_GetDefaultWindow();
@@ -121,7 +121,7 @@ mouse_get_rel(PyObject *self, PyObject *_null)
             y/=scaley;
         }
     */
-    return pg_tuple_couple_from_values_int(x, y);
+    return pg_tuple_couple_from_values_int((int)x, (int)y);
 }
 
 static PyObject *
@@ -177,14 +177,14 @@ mouse_set_visible(PyObject *self, PyObject *args)
     win = pg_GetDefaultWindow();
     if (win) {
         mode = SDL_GetWindowGrab(win);
-        if ((mode == SDL_ENABLE) & !toggle) {
+        if ((mode == SDL_TRUE) & !toggle) {
             SDL_SetRelativeMouseMode(1);
         }
         else {
             SDL_SetRelativeMouseMode(0);
         }
         window_flags = SDL_GetWindowFlags(win);
-        if (!toggle && (window_flags & SDL_WINDOW_FULLSCREEN_DESKTOP ||
+        if (!toggle && (window_flags & PG_NOSDL3_HACK_WINDOW_FULLSCREEN_DESKTOP ||
                         window_flags & SDL_WINDOW_FULLSCREEN)) {
             SDL_SetHint(SDL_HINT_WINDOW_FRAME_USABLE_WHILE_CURSOR_HIDDEN, "0");
         }
@@ -193,7 +193,13 @@ mouse_set_visible(PyObject *self, PyObject *args)
         }
     }
 
-    toggle = SDL_ShowCursor(toggle);
+    if (toggle) {
+        PG_ShowCursor();
+    }
+    else {
+        PG_HideCursor();
+    }
+
     return PyBool_FromLong(toggle);
 }
 
@@ -204,7 +210,7 @@ mouse_get_visible(PyObject *self, PyObject *_null)
 
     VIDEO_INIT_CHECK();
 
-    result = SDL_ShowCursor(SDL_QUERY);
+    result = PG_CursorVisible();
 
     if (0 > result) {
         return RAISE(pgExc_SDLError, SDL_GetError());
