@@ -803,6 +803,9 @@ _get_display(SDL_Window *win)
 {
     char *display_env = SDL_getenv("PYGAME_DISPLAY");
     int display = 0; /* default display 0 */
+#if IS_SDLv3
+    display = SDL_GetPrimaryDisplay();
+#endif
 
     if (win != NULL) {
         display = PG_GetDisplayForWindow(win);
@@ -845,7 +848,7 @@ _get_display(SDL_Window *win)
         for (int i = 0; i < num_displays; i++) {
             if (SDL_GetDisplayBounds(display_ids[i], &display_bounds) == 0) {
                 if (SDL_PointInRect(&mouse_position, &display_bounds)) {
-                    display = i;
+                    display = display_ids[i];
                     break;
                 }
             }
