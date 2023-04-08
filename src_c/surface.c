@@ -711,7 +711,7 @@ surface_init(pgSurfaceObject *self, PyObject *args, PyObject *kwds)
         }
     }
 
-    PG_CreateSurface(
+    surface = PG_CreateSurface(
         width, height,
         PG_GetPixelFormatEnumForMasks(bpp, Rmask, Gmask, Bmask, Amask));
 
