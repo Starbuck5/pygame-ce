@@ -559,6 +559,7 @@ PG_ConvertSurfaceFormat(SDL_Surface *surface, Uint32 pixel_format)
 
 #define PG_ConvertSurfaceFormat SDL_ConvertSurfaceFormat
 
+#define PG_RWWRITE SDL_RWwrite
 #endif
 
 #if IS_SDLv3
@@ -1033,6 +1034,7 @@ PG_GetNumVideoDisplays()
 #define PG_ConvertSurface SDL_ConvertSurface
 #define PG_ConvertSurfaceFormat SDL_ConvertSurfaceFormat
 
+#define PG_RWWRITE(context, ptr, size, num) SDL_RWwrite(context, ptr, size*num)
 #endif
 
 /* SDL 1.2 constants removed from SDL 2 */
