@@ -449,6 +449,14 @@ PG_CreateSurface(int width, int height, Uint32 format)
     SDL_CreateRGBSurfaceWithFormat(0, width, height, 0, format);
 }
 
+static SDL_Surface *
+PG_CreateSurfaceFrom(void *pixels, int width, int height, int pitch,
+                     Uint32 format)
+{
+    SDL_CreateRGBSurfaceWithFormatFrom(pixels, 0, width, height, 0, pitch,
+                                       format);
+}
+
 static Uint32
 PG_GetMouseState(float *x, float *y)
 {
@@ -536,6 +544,20 @@ PG_SetEventEnabled(Uint32 type, SDL_bool enabled)
 #define PG_GDEVICE cdevice
 #define PG_GTOUCHPAD ctouchpad
 #define PG_GSENSOR csensor
+
+static SDL_Surface *
+PG_ConvertSurface(SDL_Surface *surface, const SDL_PixelFormat *format)
+{
+    SDL_ConvertSurface(surface, format, 0);
+}
+
+static SDL_Surface *
+PG_ConvertSurfaceFormat(SDL_Surface *surface, Uint32 pixel_format)
+{
+    SDL_ConvertSurfaceFormat(surface, pixel_format, 0);
+}
+
+#define PG_ConvertSurfaceFormat SDL_ConvertSurfaceFormat
 
 #endif
 
@@ -960,6 +982,7 @@ PG_GetWindowWMInfo(SDL_Window *win, SDL_SysWMinfo *info)
 #define PG_EXTRACT_WINDOWEVENT_TYPE(event) event->type
 
 #define PG_CreateSurface SDL_CreateSurface
+#define PG_CreateSurfaceFrom SDL_CreateSurfaceFrom
 
 #define PG_GetGlobalMouseState SDL_GetGlobalMouseState
 #define PG_GetMouseState SDL_GetMouseState
@@ -1006,6 +1029,9 @@ PG_GetNumVideoDisplays()
 #define PG_GDEVICE gdevice
 #define PG_GTOUCHPAD gtouchpad
 #define PG_GSENSOR gsensor
+
+#define PG_ConvertSurface SDL_ConvertSurface
+#define PG_ConvertSurfaceFormat SDL_ConvertSurfaceFormat
 
 #endif
 
