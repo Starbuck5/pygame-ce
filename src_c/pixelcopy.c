@@ -323,7 +323,7 @@ _copy_colorplane(Py_buffer *view_p, SDL_Surface *surf,
     }
 #endif
     if (view_kind == VIEWKIND_COLORKEY &&
-        SDL_GetColorKey(surf, &colorkey) == 0) {
+        PG_GetSurfaceColorKey(surf, &colorkey) == 0) {
         for (x = 0; x < w; ++x) {
             for (y = 0; y < h; ++y) {
                 for (z = 0; z < pixelsize; ++z) {
@@ -1171,8 +1171,9 @@ make_surface(PyObject *self, PyObject *arg)
     sizex = (int)view_p->shape[0];
     sizey = (int)view_p->shape[1];
 
-    surf = SDL_CreateRGBSurface(0, sizex, sizey, bitsperpixel, rmask, gmask,
-                                bmask, 0);
+    surf = PG_CreateSurface(
+        sizex, sizey,
+        SDL_GetPixelFormatEnumForMasks(bitsperpixel, rmask, gmask, bmask, 0));
     if (!surf) {
         pgBuffer_Release(&pg_view);
         return RAISE(pgExc_SDLError, SDL_GetError());
@@ -1183,14 +1184,14 @@ make_surface(PyObject *self, PyObject *arg)
         if (SDL_SetPaletteColors(surf->format->palette, default_palette_colors,
                                  0, default_palette_size - 1) != 0) {
             PyErr_SetString(pgExc_SDLError, SDL_GetError());
-            SDL_FreeSurface(surf);
+            PG_DestroySurface(surf);
             return 0;
         }
     }
     surfobj = pgSurface_New(surf);
     if (!surfobj) {
         pgBuffer_Release(&pg_view);
-        SDL_FreeSurface(surf);
+        PG_DestroySurface(surf);
         return 0;
     }
 

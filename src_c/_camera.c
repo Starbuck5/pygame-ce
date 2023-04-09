@@ -109,10 +109,7 @@ surf_colorspace(PyObject *self, PyObject *arg)
     surf = pgSurface_AsSurface(surfobj);
 
     if (!surfobj2) {
-        newsurf = SDL_CreateRGBSurface(
-            0, surf->w, surf->h, surf->format->BitsPerPixel,
-            surf->format->Rmask, surf->format->Gmask, surf->format->Bmask,
-            surf->format->Amask);
+        newsurf = PG_CreateSurface(surf->w, surf->h, surf->format);
         if (!newsurf) {
             return NULL;
         }
@@ -376,8 +373,9 @@ camera_get_image(pgCameraObject *self, PyObject *arg)
         return NULL;
 
     if (!surfobj) {
-        surf = SDL_CreateRGBSurface(0, self->width, self->height, 24,
-                                    0xFF << 16, 0xFF << 8, 0xFF, 0);
+        surf = PG_CreateSurface(
+            self->width, self->height,
+            PG_GetPixelFormatEnumForMasks(24, 0xFF << 16, 0xFF << 8, 0xFF, 0));
     }
     else {
         surf = pgSurface_AsSurface(surfobj);
@@ -423,8 +421,7 @@ camera_get_image(pgCameraObject *self, PyObject *arg)
         return NULL;
 
     if (!surfobj) {
-        surf = SDL_CreateRGBSurface(0, width, height, 32,  // 24?
-                                    0xFF << 16, 0xFF << 8, 0xFF, 0);
+        surf = PG_CreateSurface(width, height, SDL_PIXELFORMAT_BGRX8888);
     }
     else {
         surf = pgSurface_AsSurface(surfobj);

@@ -168,25 +168,21 @@ _make_surface(pgPixelArrayObject *array, PyObject *args)
     bpp = surf->format->BytesPerPixel;
 
     /* Create the second surface. */
-
-    temp_surf = SDL_CreateRGBSurface(surf->flags, (int)dim0, (int)dim1,
-                                     surf->format->BitsPerPixel,
-                                     surf->format->Rmask, surf->format->Gmask,
-                                     surf->format->Bmask, surf->format->Amask);
+    temp_surf = PG_CreateSurface((int)dim0, (int)dim1, surf->format->format);
     if (!temp_surf) {
         return RAISE(pgExc_SDLError, SDL_GetError());
     }
 
     /* Guarantee an identical format. */
-    new_surf = SDL_ConvertSurface(temp_surf, surf->format, surf->flags);
-    SDL_FreeSurface(temp_surf);
+    new_surf = PG_ConvertSurface(temp_surf, surf->format);
+    PG_DestroySurface(temp_surf);
     if (!new_surf) {
         return RAISE(pgExc_SDLError, SDL_GetError());
     }
 
     new_surface = pgSurface_New(new_surf);
     if (!new_surface) {
-        SDL_FreeSurface(new_surf);
+        PG_DestroySurface(new_surf);
         return 0;
     }
 
