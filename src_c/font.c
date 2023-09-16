@@ -295,6 +295,26 @@ font_set_bold(PyObject *self, PyObject *arg)
     Py_RETURN_NONE;
 }
 
+static int
+font_setter_outline(PyObject *self, PyObject *value, void *closure)
+{
+    TTF_Font *font = PyFont_AsFont(self);
+    int val;
+
+    DEL_ATTR_NOT_SUPPORTED_CHECK("outline", value);
+
+    val = PyLong_AsLong(value);
+
+    TTF_SetFontOutline(font, val);
+    return 0;
+}
+
+static PyObject *
+font_getter_outline(PyObject *self, void *closure)
+{
+    return PyLong_FromLong(TTF_GetFontOutline(PyFont_AsFont(self)));
+}
+
 /* Implements getter for the italic attribute */
 static PyObject *
 font_getter_italic(PyObject *self, void *closure)
@@ -524,9 +544,11 @@ font_render(PyObject *self, PyObject *args, PyObject *kwds)
         backg = (SDL_Color){rgba[0], rgba[1], rgba[2], SDL_ALPHA_OPAQUE};
     }
 
+    /*
     if (!PyUnicode_Check(text) && !PyBytes_Check(text) && text != Py_None) {
         return RAISE_TEXT_TYPE_ERROR();
     }
+    */
 
     if (wraplength < 0) {
         return RAISE(PyExc_ValueError,
@@ -544,13 +566,15 @@ font_render(PyObject *self, PyObject *args, PyObject *kwds)
                          "A null character was found in the text");
         }
     }
-
     else if (PyBytes_Check(text)) {
         /* Bytes_AsStringAndSize with NULL arg for length emits
            ValueError if internal NULL bytes are present */
         if (PyBytes_AsStringAndSize(text, (char **)&astring, NULL) == -1) {
             return NULL; /* exception already set */
         }
+    }
+    else if (text != Py_None) {
+        return RAISE_TEXT_TYPE_ERROR();
     }
 
     /* if text is Py_None, leave astring as a null byte to represent 0
@@ -965,6 +989,8 @@ static PyGetSetDef font_getsets[] = {
      DOC_FONT_FONT_STYLENAME, NULL},
     {"bold", (getter)font_getter_bold, (setter)font_setter_bold,
      DOC_FONT_FONT_BOLD, NULL},
+    {"outline", (getter)font_getter_outline, (setter)font_setter_outline,
+     "TODO", NULL},
     {"italic", (getter)font_getter_italic, (setter)font_setter_italic,
      DOC_FONT_FONT_ITALIC, NULL},
     {"underline", (getter)font_getter_underline, (setter)font_setter_underline,
