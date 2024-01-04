@@ -632,84 +632,78 @@ blit_blend_rgba_mul_sse2(SDL_BlitInfo *info)
     int n;
     int width = info->width;
     int height = info->height;
-
-    Uint32 *srcp = (Uint32 *)info->s_pixels;
-    Uint64 *srcp64 = (Uint64 *)info->s_pixels;
     int srcskip = info->s_skip >> 2;
-    int srcpxskip = info->s_pxskip >> 2;
-
-    Uint32 *dstp = (Uint32 *)info->d_pixels;
-    Uint64 *dstp64 = (Uint64 *)info->d_pixels;
     int dstskip = info->d_skip >> 2;
-    int dstpxskip = info->d_pxskip >> 2;
 
-    int pre_2_width = width % 2;
-    int post_2_width = (width - pre_2_width) / 2;
+    Uint32 *srcp32 = (Uint32 *)info->s_pixels;
+    Uint32 *dstp32 = (Uint32 *)info->d_pixels;
 
-    __m128i mm_src, mm_dst, mm_zero, mm_two_five_fives;
+    int pxl_excess = width % 4;
+    int n_iters_4 = width / 4;
 
-    mm_zero = _mm_setzero_si128();
-    mm_two_five_fives = _mm_set1_epi64x(0x00FF00FF00FF00FF);
+    __m128i src, dst, pixels_src, pixels_dst, batch_a_dst;
+    __m128i *srcp128, *dstp128;
+    __m128i mm_zero = _mm_setzero_si128();
+    __m128i mm_two_five_fives = _mm_set1_epi16(0x00FF);
 
     while (height--) {
-        if (pre_2_width > 0) {
-            LOOP_UNROLLED4(
-                {
-                    mm_src = _mm_cvtsi32_si128(*srcp);
-                    /*mm_src = 0x000000000000000000000000AARRGGBB*/
-                    mm_src = _mm_unpacklo_epi8(mm_src, mm_zero);
-                    /*mm_src = 0x000000000000000000AA00RR00GG00BB*/
-                    mm_dst = _mm_cvtsi32_si128(*dstp);
-                    /*mm_dst = 0x000000000000000000000000AARRGGBB*/
-                    mm_dst = _mm_unpacklo_epi8(mm_dst, mm_zero);
-                    /*mm_dst = 0x000000000000000000AA00RR00GG00BB*/
+        srcp128 = (__m128i *)srcp32;
+        dstp128 = (__m128i *)dstp32;
 
-                    mm_dst = _mm_mullo_epi16(mm_src, mm_dst);
-                    /*mm_dst = 0x0000000000000000AAAARRRRGGGGBBBB*/
-                    mm_dst = _mm_add_epi16(mm_dst, mm_two_five_fives);
-                    /*mm_dst = 0x0000000000000000AAAARRRRGGGGBBBB*/
-                    mm_dst = _mm_srli_epi16(mm_dst, 8);
-                    /*mm_dst = 0x000000000000000000AA00RR00GG00BB*/
-                    mm_dst = _mm_packus_epi16(mm_dst, mm_dst);
-                    /*mm_dst = 0x00000000AARRGGBB00000000AARRGGBB*/
-                    *dstp = _mm_cvtsi128_si32(mm_dst);
-                    /*dstp = 0xAARRGGBB*/
-                    srcp += srcpxskip;
-                    dstp += dstpxskip;
-                },
-                n, pre_2_width);
-        }
-        srcp64 = (Uint64 *)srcp;
-        dstp64 = (Uint64 *)dstp;
-        if (post_2_width > 0) {
-            LOOP_UNROLLED4(
-                {
-                    LOAD_64_INTO_M128(srcp64, &mm_src);
-                    /*mm_src = 0x0000000000000000AARRGGBBAARRGGBB*/
-                    mm_src = _mm_unpacklo_epi8(mm_src, mm_zero);
-                    /*mm_src = 0x00AA00RR00GG00BB00AA00RR00GG00BB*/
-                    LOAD_64_INTO_M128(dstp64, &mm_dst);
-                    /*mm_dst = 0x0000000000000000AARRGGBBAARRGGBB*/
-                    mm_dst = _mm_unpacklo_epi8(mm_dst, mm_zero);
-                    /*mm_dst = 0x00AA00RR00GG00BB00AA00RR00GG00BB*/
+        LOOP_UNROLLED4(
+            {
+                /* ==== load 4 pixels into SSE registers ==== */
+                pixels_src = _mm_loadu_si128(srcp128);
+                pixels_dst = _mm_loadu_si128(dstp128);
 
-                    mm_dst = _mm_mullo_epi16(mm_src, mm_dst);
-                    /*mm_dst = 0xAAAARRRRGGGGBBBBAAAARRRRGGGGBBBB*/
-                    mm_dst = _mm_add_epi16(mm_dst, mm_two_five_fives);
-                    /*mm_dst = 0xAAAARRRRGGGGBBBBAAAARRRRGGGGBBBB*/
-                    mm_dst = _mm_srli_epi16(mm_dst, 8);
-                    /*mm_dst = 0x00AA00RR00GG00BB00AA00RR00GG00BB*/
-                    mm_dst = _mm_packus_epi16(mm_dst, mm_dst);
-                    /*mm_dst = 0x00000000AARRGGBB00000000AARRGGBB*/
-                    STORE_M128_INTO_64(&mm_dst, dstp64);
-                    /*dstp = 0xAARRGGBB*/
-                    srcp64++;
-                    dstp64++;
-                },
-                n, post_2_width);
+                /* ==== BATCH A (the 2 low pixels) ==== */
+                src = _mm_unpacklo_epi8(pixels_src, mm_zero);
+                dst = _mm_unpacklo_epi8(pixels_dst, mm_zero);
+                dst = _mm_mullo_epi16(src, dst);
+                dst = _mm_add_epi16(dst, mm_two_five_fives);
+                batch_a_dst = _mm_srli_epi16(dst, 8);
+
+                /* ==== BATCH B (the 2 high pixels) ==== */
+                src = _mm_unpackhi_epi8(pixels_src, mm_zero);
+                dst = _mm_unpackhi_epi8(pixels_dst, mm_zero);
+                dst = _mm_mullo_epi16(src, dst);
+                dst = _mm_add_epi16(dst, mm_two_five_fives);
+                dst = _mm_srli_epi16(dst, 8);
+
+                /* ==== combine batches and store ==== */
+                dst = _mm_packus_epi16(batch_a_dst, dst);
+                _mm_storeu_si128(dstp128, dst);
+
+                srcp128++;
+                dstp128++;
+            },
+            n, n_iters_4);
+
+        srcp32 = (Uint32 *)srcp128;
+        dstp32 = (Uint32 *)dstp128;
+
+        for (int i = 0; i < pxl_excess; i++) {
+            /* ==== load 1 pixel into SSE registers ==== */
+            pixels_src = _mm_cvtsi32_si128(*srcp32);
+            pixels_dst = _mm_cvtsi32_si128(*dstp32);
+
+            /* ==== unpack and process pixel ==== */
+            src = _mm_unpacklo_epi8(pixels_src, mm_zero);
+            dst = _mm_unpacklo_epi8(pixels_dst, mm_zero);
+            dst = _mm_mullo_epi16(src, dst);
+            dst = _mm_add_epi16(dst, mm_two_five_fives);
+            dst = _mm_srli_epi16(dst, 8);
+
+            /* ==== pack and store ==== */
+            dst = _mm_packus_epi16(dst, mm_zero);
+            *dstp32 = _mm_cvtsi128_si32(dst);
+
+            srcp32++;
+            dstp32++;
         }
-        srcp = (Uint32 *)srcp64 + srcskip;
-        dstp = (Uint32 *)dstp64 + dstskip;
+
+        srcp32 += srcskip;
+        dstp32 += dstskip;
     }
 }
 
@@ -719,94 +713,86 @@ blit_blend_rgb_mul_sse2(SDL_BlitInfo *info)
     int n;
     int width = info->width;
     int height = info->height;
-
-    Uint32 *srcp = (Uint32 *)info->s_pixels;
-    Uint64 *srcp64 = (Uint64 *)info->s_pixels;
     int srcskip = info->s_skip >> 2;
-    int srcpxskip = info->s_pxskip >> 2;
-
-    Uint32 *dstp = (Uint32 *)info->d_pixels;
-    Uint64 *dstp64 = (Uint64 *)info->d_pixels;
     int dstskip = info->d_skip >> 2;
-    int dstpxskip = info->d_pxskip >> 2;
 
-    int pre_2_width = width % 2;
-    int post_2_width = (width - pre_2_width) / 2;
+    Uint32 *srcp32 = (Uint32 *)info->s_pixels;
+    Uint32 *dstp32 = (Uint32 *)info->d_pixels;
+
+    int pxl_excess = width % 4;
+    int n_iters_4 = width / 4;
 
     /* if either surface has a non-zero alpha mask use that as our mask */
     Uint32 amask = info->src->Amask | info->dst->Amask;
-    Uint64 amask64 = (((Uint64)amask) << 32) | (Uint64)amask;
 
-    __m128i mm_src, mm_dst, mm_zero, mm_two_five_fives, mm_alpha_mask;
-
-    mm_zero = _mm_setzero_si128();
-    mm_two_five_fives = _mm_set1_epi64x(0x00FF00FF00FF00FF);
-    mm_alpha_mask = _mm_set_epi64x(0x0000000000000000, amask64);
+    __m128i src, dst, pixels_src, pixels_dst, batch_a_dst;
+    __m128i *srcp128, *dstp128;
+    __m128i mm_zero = _mm_setzero_si128();
+    __m128i mm_two_five_fives = _mm_set1_epi16(0x00FF);
+    __m128i mm_alpha_mask = _mm_set1_epi32(amask);
 
     while (height--) {
-        if (pre_2_width > 0) {
-            LOOP_UNROLLED4(
-                {
-                    mm_src = _mm_cvtsi32_si128(*srcp);
-                    /*mm_src = 0x000000000000000000000000AARRGGBB*/
-                    mm_src = _mm_or_si128(mm_src, mm_alpha_mask);
-                    /* ensure source alpha is 255 */
-                    mm_src = _mm_unpacklo_epi8(mm_src, mm_zero);
-                    /*mm_src = 0x000000000000000000AA00RR00GG00BB*/
-                    mm_dst = _mm_cvtsi32_si128(*dstp);
-                    /*mm_dst = 0x000000000000000000000000AARRGGBB*/
-                    mm_dst = _mm_unpacklo_epi8(mm_dst, mm_zero);
-                    /*mm_dst = 0x000000000000000000AA00RR00GG00BB*/
+        srcp128 = (__m128i *)srcp32;
+        dstp128 = (__m128i *)dstp32;
 
-                    mm_dst = _mm_mullo_epi16(mm_src, mm_dst);
-                    /*mm_dst = 0x0000000000000000AAAARRRRGGGGBBBB*/
-                    mm_dst = _mm_add_epi16(mm_dst, mm_two_five_fives);
-                    /*mm_dst = 0x0000000000000000AAAARRRRGGGGBBBB*/
-                    mm_dst = _mm_srli_epi16(mm_dst, 8);
-                    /*mm_dst = 0x000000000000000000AA00RR00GG00BB*/
-                    mm_dst = _mm_packus_epi16(mm_dst, mm_dst);
-                    /*mm_dst = 0x000000000000000000000000AARRGGBB*/
-                    *dstp = _mm_cvtsi128_si32(mm_dst);
-                    /*dstp = 0xAARRGGBB*/
-                    srcp += srcpxskip;
-                    dstp += dstpxskip;
-                },
-                n, pre_2_width);
+        LOOP_UNROLLED4(
+            {
+                /* ==== load 4 pixels into SSE registers ==== */
+                pixels_src = _mm_loadu_si128(srcp128);
+                // ensure source alpha is 255
+                pixels_src = _mm_or_si128(pixels_src, mm_alpha_mask);
+                pixels_dst = _mm_loadu_si128(dstp128);
+
+                /* ==== BATCH A (the 2 low pixels) ==== */
+                src = _mm_unpacklo_epi8(pixels_src, mm_zero);
+                dst = _mm_unpacklo_epi8(pixels_dst, mm_zero);
+                dst = _mm_mullo_epi16(src, dst);
+                dst = _mm_add_epi16(dst, mm_two_five_fives);
+                batch_a_dst = _mm_srli_epi16(dst, 8);
+
+                /* ==== BATCH B (the 2 high pixels) ==== */
+                src = _mm_unpackhi_epi8(pixels_src, mm_zero);
+                dst = _mm_unpackhi_epi8(pixels_dst, mm_zero);
+                dst = _mm_mullo_epi16(src, dst);
+                dst = _mm_add_epi16(dst, mm_two_five_fives);
+                dst = _mm_srli_epi16(dst, 8);
+
+                /* ==== combine batches and store ==== */
+                dst = _mm_packus_epi16(batch_a_dst, dst);
+                _mm_storeu_si128(dstp128, dst);
+
+                srcp128++;
+                dstp128++;
+            },
+            n, n_iters_4);
+
+        srcp32 = (Uint32 *)srcp128;
+        dstp32 = (Uint32 *)dstp128;
+
+        for (int i = 0; i < pxl_excess; i++) {
+            /* ==== load 1 pixel into SSE registers ==== */
+            pixels_src = _mm_cvtsi32_si128(*srcp32);
+            // ensure source alpha is 255
+            pixels_src = _mm_or_si128(pixels_src, mm_alpha_mask);
+            pixels_dst = _mm_cvtsi32_si128(*dstp32);
+
+            /* ==== unpack and process pixel ==== */
+            src = _mm_unpacklo_epi8(pixels_src, mm_zero);
+            dst = _mm_unpacklo_epi8(pixels_dst, mm_zero);
+            dst = _mm_mullo_epi16(src, dst);
+            dst = _mm_add_epi16(dst, mm_two_five_fives);
+            dst = _mm_srli_epi16(dst, 8);
+
+            /* ==== pack and store ==== */
+            dst = _mm_packus_epi16(dst, mm_zero);
+            *dstp32 = _mm_cvtsi128_si32(dst);
+
+            srcp32++;
+            dstp32++;
         }
-        srcp64 = (Uint64 *)srcp;
-        dstp64 = (Uint64 *)dstp;
-        if (post_2_width > 0) {
-            LOOP_UNROLLED4(
-                {
-                    LOAD_64_INTO_M128(srcp64, &mm_src);
-                    /*mm_src = 0x0000000000000000AARRGGBBAARRGGBB*/
-                    mm_src = _mm_or_si128(mm_src, mm_alpha_mask);
-                    /* ensure source alpha is 255 */
-                    mm_src = _mm_unpacklo_epi8(mm_src, mm_zero);
-                    /*mm_src = 0x00AA00RR00GG00BB00AA00RR00GG00BB*/
-                    LOAD_64_INTO_M128(dstp64, &mm_dst);
-                    /*mm_dst = 0x0000000000000000AARRGGBBAARRGGBB*/
-                    mm_dst = _mm_unpacklo_epi8(mm_dst, mm_zero);
-                    /*mm_dst = 0x00AA00RR00GG00BB00AA00RR00GG00BB*/
 
-                    mm_dst = _mm_mullo_epi16(mm_src, mm_dst);
-                    /*mm_dst = 0xAAAARRRRGGGGBBBBAAAARRRRGGGGBBBB*/
-                    mm_dst = _mm_add_epi16(mm_dst, mm_two_five_fives);
-                    /*mm_dst = 0xAAAARRRRGGGGBBBBAAAARRRRGGGGBBBB*/
-                    mm_dst = _mm_srli_epi16(mm_dst, 8);
-                    /*mm_dst = 0x00AA00RR00GG00BB00AA00RR00GG00BB*/
-                    mm_dst = _mm_packus_epi16(mm_dst, mm_dst);
-                    /*mm_dst = 0x00000000AARRGGBB00000000AARRGGBB*/
-                    STORE_M128_INTO_64(&mm_dst, dstp64);
-
-                    /*dstp = 0xAARRGGBB*/
-                    srcp64++;
-                    dstp64++;
-                },
-                n, post_2_width);
-        }
-        srcp = (Uint32 *)srcp64 + srcskip;
-        dstp = (Uint32 *)dstp64 + dstskip;
+        srcp32 += srcskip;
+        dstp32 += dstskip;
     }
 }
 
