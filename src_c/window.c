@@ -103,7 +103,8 @@ get_grabbed_window(PyObject *self, PyObject *_null)
     SDL_Window *grabbed = SDL_GetGrabbedWindow();
     PyObject *win_obj = NULL;
     if (grabbed) {
-        win_obj = SDL_GetWindowData(grabbed, "pg_window");
+        SDL_PropertiesID win_props = SDL_GetWindowProperties(grabbed);
+        win_obj = SDL_GetProperty(win_props, "pg_window", NULL); 
         if (!win_obj) {
             Py_RETURN_NONE;
         }
@@ -204,12 +205,16 @@ _resize_event_watch(void *userdata, SDL_Event *event)
 {
     pgWindowObject *event_window_pg;
     SDL_Window *event_window;
-    if ((event->type != SDL_WINDOWEVENT))
+
+    if ((event->type < SDL_EVENT_WINDOW_FIRST || event->type > SDL_EVENT_WINDOW_LAST))
         return 0;
-    if (event->window.event != SDL_WINDOWEVENT_SIZE_CHANGED)
+
+    if (event->window.type != SDL_WINDOWEVENT_SIZE_CHANGED)
         return 0;
+
     event_window = SDL_GetWindowFromID(event->window.windowID);
-    event_window_pg = SDL_GetWindowData(event_window, "pg_window");
+    SDL_PropertiesID win_props = SDL_GetWindowProperties(event_window);
+    event_window_pg = SDL_GetProperty(win_props, "pg_window", NULL);
 
     if (!event_window_pg)
         return 0;
@@ -245,7 +250,7 @@ window_set_fullscreen(pgWindowObject *self, PyObject *args, PyObject *kwargs)
         return NULL;
     }
     if (desktop) {
-        flags = SDL_WINDOW_FULLSCREEN_DESKTOP;
+        flags = SDL_WINDOW_FULLSCREEN;
     }
     if (SDL_SetWindowFullscreen(self->_win, flags)) {
         return RAISE(pgExc_SDLError, SDL_GetError());
@@ -723,11 +728,12 @@ static void
 window_dealloc(pgWindowObject *self, PyObject *_null)
 {
     if (self->_win) {
+        SDL_PropertiesID win_props = SDL_GetWindowProperties(self->_win);
         if (!self->_is_borrowed) {
             SDL_DestroyWindow(self->_win);
         }
-        else if (SDL_GetWindowData(self->_win, "pg_window") != NULL) {
-            SDL_SetWindowData(self->_win, "pg_window", NULL);
+        else if (SDL_GetProperty(win_props, "pg_window", NULL) != NULL) {
+            SDL_SetProperty(win_props, "pg_window", NULL);
         }
     }
     if (self->surf) {
@@ -795,7 +801,7 @@ window_init(pgWindowObject *self, PyObject *args, PyObject *kwargs)
                 }
                 else if (!strcmp(_key_str, "fullscreen_desktop")) {
                     if (_value_bool)
-                        flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
+                        flags |= SDL_WINDOW_FULLSCREEN;
                 }
                 else if (!strcmp(_key_str, "hidden")) {
                     if (_value_bool)
@@ -849,11 +855,13 @@ window_init(pgWindowObject *self, PyObject *args, PyObject *kwargs)
                         flags |= SDL_WINDOW_MOUSE_FOCUS;
                     }
                 }
+#if 0
                 else if (!strcmp(_key_str, "foreign")) {
                     if (_value_bool) {
                         flags |= SDL_WINDOW_FOREIGN;
                     }
                 }
+#endif
                 else if (!strcmp(_key_str, "allow_high_dpi")) {
                     if (_value_bool) {
                         flags |= SDL_WINDOW_ALLOW_HIGHDPI;
@@ -916,7 +924,16 @@ window_init(pgWindowObject *self, PyObject *args, PyObject *kwargs)
         }
     }
 
-    _win = SDL_CreateWindow(title, pos_x, pos_y, size_w, size_h, flags);
+    SDL_PropertiesID props = SDL_CreateProperties();
+    SDL_SetStringProperty(props, SDL_PROP_WINDOW_CREATE_TITLE_STRING, title);
+    SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_X_NUMBER, pos_x);
+    SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_Y_NUMBER, pos_y);
+    SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_WIDTH_NUMBER, size_w);
+    SDL_SetNumberProperty(props, SDL_PROP_WINDOW_CREATE_HEIGHT_NUMBER, size_h);
+    SDL_SetNumberProperty(props, "flags", flags);
+    SDL_SetProperty(props, "pg_window", self);
+    _win = SDL_CreateWindowWithProperties(props);
+    SDL_DestroyProperties(props);
     if (!_win) {
         PyErr_SetString(pgExc_SDLError, SDL_GetError());
         return -1;
@@ -924,8 +941,6 @@ window_init(pgWindowObject *self, PyObject *args, PyObject *kwargs)
     self->_win = _win;
     self->_is_borrowed = SDL_FALSE;
     self->surf = NULL;
-
-    SDL_SetWindowData(_win, "pg_window", self);
 
     PyObject *icon = pg_display_resource(icon_defaultname);
     if (!icon) {
@@ -946,6 +961,8 @@ window_init(pgWindowObject *self, PyObject *args, PyObject *kwargs)
 static PyObject *
 window_from_display_module(PyTypeObject *cls, PyObject *_null)
 {
+    return RAISE(pgExc_SDLError, "No.");
+#if 0
     if (PyErr_WarnEx(PyExc_DeprecationWarning,
                      "Please use Window.get_surface and Window.flip to use "
                      "surface-rendering with Window. This method will be "
@@ -972,6 +989,7 @@ window_from_display_module(PyTypeObject *cls, PyObject *_null)
     self->_is_borrowed = SDL_TRUE;
     SDL_SetWindowData(window, "pg_window", self);
     return (PyObject *)self;
+#endif
 }
 
 PyObject *

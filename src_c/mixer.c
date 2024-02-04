@@ -73,8 +73,7 @@ const PG_sample_format_t PG_SAMPLE_CHAR_SIGN = (char)0xff > 0 ? 0 : 0x10000u;
 #define PYGAME_MIXER_DEFAULT_SIZE -16
 #define PYGAME_MIXER_DEFAULT_CHANNELS 2
 #define PYGAME_MIXER_DEFAULT_CHUNKSIZE 512
-#define PYGAME_MIXER_DEFAULT_ALLOWEDCHANGES \
-    SDL_AUDIO_ALLOW_FREQUENCY_CHANGE | SDL_AUDIO_ALLOW_CHANNELS_CHANGE
+#define PYGAME_MIXER_DEFAULT_ALLOWEDCHANGES 0
 
 static int
 sound_init(PyObject *, PyObject *, PyObject *);
@@ -122,8 +121,6 @@ _format_itemsize(Uint16 format)
             size = 1;
             break;
 
-        case AUDIO_U16LSB:
-        case AUDIO_U16MSB:
         case AUDIO_S16LSB:
         case AUDIO_S16MSB:
             size = 2;
@@ -348,16 +345,6 @@ _init(int freq, int size, int channels, int chunk, char *devicename,
     if (!channels) {
         channels = request_channels;
     }
-    if (allowedchanges & SDL_AUDIO_ALLOW_CHANNELS_CHANGE) {
-        if (channels <= 1)
-            channels = 1;
-        else if (channels <= 3)
-            channels = 2;
-        else if (channels <= 5)
-            channels = 4;
-        else
-            channels = 6;
-    }
     else {
         switch (channels) {
             case 1:
@@ -389,7 +376,7 @@ _init(int freq, int size, int channels, int chunk, char *devicename,
             fmt = AUDIO_S8;
             break;
         case 16:
-            fmt = AUDIO_U16SYS;
+            fmt = PG_AUDIO_U16SYS;
             break;
         case -16:
             fmt = AUDIO_S16SYS;
@@ -441,8 +428,13 @@ _init(int freq, int size, int channels, int chunk, char *devicename,
         if (SDL_InitSubSystem(SDL_INIT_AUDIO))
             return RAISE(pgExc_SDLError, SDL_GetError());
 
-        if (Mix_OpenAudioDevice(freq, fmt, channels, chunk, devicename,
-                                allowedchanges) == -1) {
+
+        SDL_AudioSpec spec = {0};
+        spec.format = fmt;
+        spec.channels = channels;
+        spec.freq = freq;
+
+        if (Mix_OpenAudio(SDL_AUDIO_DEVICE_DEFAULT_OUTPUT, &spec) == -1) {
             SDL_QuitSubSystem(SDL_INIT_AUDIO);
             return RAISE(pgExc_SDLError, SDL_GetError());
         }
@@ -893,7 +885,7 @@ snd_buffer_iteminfo(char **format, Py_ssize_t *itemsize, int *channels)
             *itemsize = 1;
             return 0;
 
-        case AUDIO_U16SYS:
+        case PG_AUDIO_U16SYS:
             *format = fmt_AUDIO_U16SYS;
             *itemsize = 2;
             return 0;

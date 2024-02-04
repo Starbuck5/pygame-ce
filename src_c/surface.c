@@ -2431,7 +2431,7 @@ surf_get_flags(PyObject *self, PyObject *_null)
     if ((sdl_flags & SDL_RLEACCEL))
         flags |= PGS_RLEACCEL;
     if (is_window_surf) {
-        if (window_flags & SDL_WINDOW_FULLSCREEN_DESKTOP ||
+        if (window_flags & SDL_WINDOW_FULLSCREEN ||
             window_flags & SDL_WINDOW_FULLSCREEN)
             flags |= PGS_FULLSCREEN;
         if (window_flags & SDL_WINDOW_OPENGL)

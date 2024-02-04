@@ -51,9 +51,9 @@ _pg_rw_size(SDL_RWops *);
 static Sint64
 _pg_rw_seek(SDL_RWops *, Sint64, int);
 static size_t
-_pg_rw_read(SDL_RWops *, void *, size_t, size_t);
+_pg_rw_read(SDL_RWops *, void *, size_t);
 static size_t
-_pg_rw_write(SDL_RWops *, const void *, size_t, size_t);
+_pg_rw_write(SDL_RWops *, const void *, size_t);
 static int
 _pg_rw_close(SDL_RWops *);
 
@@ -362,7 +362,7 @@ end:
 }
 
 static size_t
-_pg_rw_write(SDL_RWops *context, const void *ptr, size_t size, size_t num)
+_pg_rw_write(SDL_RWops *context, const void *ptr, size_t size)
 {
     pgRWHelper *helper = (pgRWHelper *)context->hidden.unknown.data1;
     PyObject *result;
@@ -374,7 +374,7 @@ _pg_rw_write(SDL_RWops *context, const void *ptr, size_t size, size_t num)
     PyGILState_STATE state = PyGILState_Ensure();
 
     result = PyObject_CallFunction(helper->write, "y#", (const char *)ptr,
-                                   (Py_ssize_t)size * num);
+                                   (Py_ssize_t)size);
     if (!result) {
         PyErr_Print();
         retval = -1;
@@ -382,7 +382,7 @@ _pg_rw_write(SDL_RWops *context, const void *ptr, size_t size, size_t num)
     }
 
     Py_DECREF(result);
-    retval = num;
+    retval = size;
 
 end:
     PyGILState_Release(state);
@@ -499,7 +499,7 @@ end:
 }
 
 static size_t
-_pg_rw_read(SDL_RWops *context, void *ptr, size_t size, size_t maxnum)
+_pg_rw_read(SDL_RWops *context, void *ptr, size_t size)
 {
     pgRWHelper *helper = (pgRWHelper *)context->hidden.unknown.data1;
     PyObject *result;
@@ -510,7 +510,7 @@ _pg_rw_read(SDL_RWops *context, void *ptr, size_t size, size_t maxnum)
 
     PyGILState_STATE state = PyGILState_Ensure();
     result = PyObject_CallFunction(helper->read, "K",
-                                   (unsigned long long)size * maxnum);
+                                   (unsigned long long)size);
     if (!result) {
         PyErr_Print();
         retval = -1;
@@ -527,7 +527,7 @@ _pg_rw_read(SDL_RWops *context, void *ptr, size_t size, size_t maxnum)
     retval = PyBytes_GET_SIZE(result);
     if (retval) {
         memcpy(ptr, PyBytes_AsString(result), retval);
-        retval /= size;
+        retval;
     }
 
     Py_DECREF(result);

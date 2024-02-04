@@ -41,7 +41,7 @@ init(PyObject *self, PyObject *_null)
     if (!SDL_WasInit(SDL_INIT_JOYSTICK)) {
         if (SDL_InitSubSystem(SDL_INIT_JOYSTICK))
             return RAISE(pgExc_SDLError, SDL_GetError());
-        SDL_JoystickEventState(SDL_ENABLE);
+        SDL_SetJoystickEventsEnabled(SDL_TRUE);
     }
     Py_RETURN_NONE;
 }
@@ -60,7 +60,7 @@ quit(PyObject *self, PyObject *_null)
     }
 
     if (SDL_WasInit(SDL_INIT_JOYSTICK)) {
-        SDL_JoystickEventState(SDL_ENABLE);
+        SDL_SetJoystickEventsEnabled(SDL_TRUE);
         SDL_QuitSubSystem(SDL_INIT_JOYSTICK);
     }
     Py_RETURN_NONE;
@@ -112,7 +112,19 @@ static PyObject *
 get_count(PyObject *self, PyObject *_null)
 {
     JOYSTICK_INIT_CHECK();
-    return PyLong_FromLong(SDL_NumJoysticks());
+
+    SDL_JoystickID* joysticks;
+    int count;
+
+    joysticks =  SDL_GetJoysticks(&count);
+
+    if (joysticks == NULL) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    SDL_free(joysticks);
+
+    return PyLong_FromLong(count);
 }
 
 static PyObject *
@@ -200,7 +212,7 @@ joy_get_guid(PyObject *self, PyObject *_null)
         guid = SDL_JoystickGetGUID(joy);
     }
     else {
-        guid = SDL_JoystickGetDeviceGUID(pgJoystick_AsID(self));
+        guid = SDL_GetJoystickInstanceGUID(pgJoystick_AsID(self));
     }
 
     SDL_JoystickGetGUIDString(guid, strguid, 33);
@@ -387,41 +399,13 @@ joy_get_button(PyObject *self, PyObject *args)
 static PyObject *
 joy_get_numballs(PyObject *self, PyObject *_null)
 {
-    SDL_Joystick *joy = pgJoystick_AsSDL(self);
-
-    JOYSTICK_INIT_CHECK();
-    if (!joy) {
-        return RAISE(pgExc_SDLError, "Joystick not initialized");
-    }
-
-    return PyLong_FromLong(SDL_JoystickNumBalls(joy));
+    return RAISE(PyExc_NotImplementedError, "No support in SDL3");
 }
 
 static PyObject *
 joy_get_ball(PyObject *self, PyObject *args)
 {
-    SDL_Joystick *joy = pgJoystick_AsSDL(self);
-    int _index, dx, dy;
-    int value;
-
-    if (!PyArg_ParseTuple(args, "i", &_index)) {
-        return NULL;
-    }
-
-    JOYSTICK_INIT_CHECK();
-    if (!joy) {
-        return RAISE(pgExc_SDLError, "Joystick not initialized");
-    }
-    value = SDL_JoystickNumBalls(joy);
-#ifdef DEBUG
-    /*printf("SDL_JoystickNumBalls value:%d:\n", value);*/
-#endif
-    if (_index < 0 || _index >= value) {
-        return RAISE(pgExc_SDLError, "Invalid joystick trackball");
-    }
-
-    SDL_JoystickGetBall(joy, _index, &dx, &dy);
-    return Py_BuildValue("(ii)", dx, dy);
+    return RAISE(PyExc_NotImplementedError, "No support in SDL3");
 }
 
 static PyObject *
@@ -545,9 +529,9 @@ pgJoystick_New(int id)
     JOYSTICK_INIT_CHECK();
 
     /* Open the SDL device */
-    if (id >= SDL_NumJoysticks()) {
-        return RAISE(pgExc_SDLError, "Invalid joystick device number");
-    }
+    //if (id >= SDL_NumJoysticks()) {
+    //    return RAISE(pgExc_SDLError, "Invalid joystick device number");
+    //}
     joy = SDL_JoystickOpen(id);
     if (!joy) {
         return RAISE(pgExc_SDLError, SDL_GetError());

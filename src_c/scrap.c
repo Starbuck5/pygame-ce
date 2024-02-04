@@ -25,8 +25,6 @@
 
 #include "SDL.h"
 
-#include "SDL_syswm.h"
-
 #include "pygame.h"
 
 #include "pgcompat.h"

@@ -1,6 +1,8 @@
 #define NO_PYGAME_C_API
 #include "_surface.h"
 
+#include <immintrin.h>
+
 /**
  * MACRO borrowed from SSE2NEON - useful for making the shuffling family of
  * intrinsics easier to understand by indicating clearly what will go where.

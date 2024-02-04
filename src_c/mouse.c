@@ -65,7 +65,7 @@ mouse_set_pos(PyObject *self, PyObject *args)
 static PyObject *
 mouse_get_pos(PyObject *self, PyObject *_null)
 {
-    int x, y;
+    float x, y;
 
     VIDEO_INIT_CHECK();
     SDL_GetMouseState(&x, &y);
@@ -80,8 +80,8 @@ mouse_get_pos(PyObject *self, PyObject *_null)
             SDL_RenderGetScale(sdlRenderer, &scalex, &scaley);
             SDL_RenderGetViewport(sdlRenderer, &vprect);
 
-            x = (int)(x / scalex);
-            y = (int)(y / scaley);
+            x = x / scalex;
+            y = y / scaley;
 
             x -= vprect.x;
             y -= vprect.y;
@@ -89,21 +89,21 @@ mouse_get_pos(PyObject *self, PyObject *_null)
             if (x < 0)
                 x = 0;
             if (x >= vprect.w)
-                x = vprect.w - 1;
+                x = (float)(vprect.w - 1);
             if (y < 0)
                 y = 0;
             if (y >= vprect.h)
-                y = vprect.h - 1;
+                y = (float)(vprect.h - 1);
         }
     }
 
-    return pg_tuple_couple_from_values_int(x, y);
+    return pg_tuple_couple_from_values_int((int)x, (int)y);
 }
 
 static PyObject *
 mouse_get_rel(PyObject *self, PyObject *_null)
 {
-    int x, y;
+    float x, y;
 
     VIDEO_INIT_CHECK();
 
@@ -121,7 +121,7 @@ mouse_get_rel(PyObject *self, PyObject *_null)
             y/=scaley;
         }
     */
-    return pg_tuple_couple_from_values_int(x, y);
+    return pg_tuple_couple_from_values_int((int)x, (int)y);
 }
 
 static PyObject *
@@ -176,14 +176,14 @@ mouse_set_visible(PyObject *self, PyObject *args)
     win = pg_GetDefaultWindow();
     if (win) {
         int mode = SDL_GetWindowGrab(win);
-        if ((mode == SDL_ENABLE) & !toggle) {
+        if ((mode == SDL_TRUE) & !toggle) {
             SDL_SetRelativeMouseMode(1);
         }
         else {
             SDL_SetRelativeMouseMode(0);
         }
         window_flags = SDL_GetWindowFlags(win);
-        if (!toggle && (window_flags & SDL_WINDOW_FULLSCREEN_DESKTOP ||
+        if (!toggle && (window_flags & SDL_WINDOW_FULLSCREEN ||
                         window_flags & SDL_WINDOW_FULLSCREEN)) {
             SDL_SetHint(SDL_HINT_WINDOW_FRAME_USABLE_WHILE_CURSOR_HIDDEN, "0");
         }
