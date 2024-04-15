@@ -25,6 +25,7 @@ else:
         TEST_RESULTS_START,
     )
 import pygame
+import pygame.threads
 
 import os
 import re
@@ -32,7 +33,6 @@ import shutil
 import tempfile
 import time
 import random
-from concurrent.futures import ThreadPoolExecutor
 from pprint import pformat
 
 was_run = False
@@ -250,34 +250,41 @@ def run(*args, **kwds):
                 ),
             )
 
-        with ThreadPoolExecutor(max_workers=option_multi_thread) as executor:
-            t = time.time()
+        if option_multi_thread > 1:
 
-            for module, cmd, (return_code, raw_return) in executor.map(
-                sub_test, test_modules
-            ):
-                test_file = f"{os.path.join(test_subdir, module)}.py"
-                cmd, test_env, working_dir = cmd
-
-                test_results = get_test_results(raw_return)
-                if test_results:
-                    results.update(test_results)
-                else:
-                    results[module] = {}
-
-                results[module].update(
-                    dict(
-                        return_code=return_code,
-                        raw_return=raw_return,
-                        cmd=cmd,
-                        test_file=test_file,
-                        test_env=test_env,
-                        working_dir=working_dir,
-                        module=module,
-                    )
+            def tmap(f, args):
+                return pygame.threads.tmap(
+                    f, args, stop_on_error=False, num_workers=option_multi_thread
                 )
 
-            t = time.time() - t
+        else:
+            tmap = map
+
+        t = time.time()
+
+        for module, cmd, (return_code, raw_return) in tmap(sub_test, test_modules):
+            test_file = f"{os.path.join(test_subdir, module)}.py"
+            cmd, test_env, working_dir = cmd
+
+            test_results = get_test_results(raw_return)
+            if test_results:
+                results.update(test_results)
+            else:
+                results[module] = {}
+
+            results[module].update(
+                dict(
+                    return_code=return_code,
+                    raw_return=raw_return,
+                    cmd=cmd,
+                    test_file=test_file,
+                    test_env=test_env,
+                    working_dir=working_dir,
+                    module=module,
+                )
+            )
+
+        t = time.time() - t
 
     ###########################################################################
     # Output Results

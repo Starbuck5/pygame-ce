@@ -25,7 +25,8 @@ def random_mask(size=(100, 100)):
 
 def maskFromSurface(surface, threshold=127):
     mask = pygame.Mask(surface.get_size())
-    if key := surface.get_colorkey():
+    key = surface.get_colorkey()
+    if key:
         for y in range(surface.get_height()):
             for x in range(surface.get_width()):
                 if surface.get_at((x + 0.1, y + 0.1)) != key:

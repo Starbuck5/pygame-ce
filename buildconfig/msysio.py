@@ -21,10 +21,11 @@ def print_(*args, **kwds):
 
     stream = kwds.get('file', sys.stdout)
     sep = kwds.get('sep', ' ')
+    end = kwds.get('end', '\n')
 
     if args:
         stream.write(sep.join([str(arg) for arg in args]))
-    if end := kwds.get('end', '\n'):
+    if end:
         stream.write(end)
     try:
         stream.flush()

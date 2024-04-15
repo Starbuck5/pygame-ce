@@ -465,8 +465,12 @@ type_files = glob.glob(os.path.join(stub_dir, '*.pyi'))
 for type_file in type_files:
     pygame_data_files.append(type_file)
 
-if _sdl2_data_files := glob.glob(os.path.join(stub_dir, '_sdl2', '*.pyi')):
+_sdl2 = glob.glob(os.path.join(stub_dir, '_sdl2', '*.pyi'))
+if _sdl2:
+    _sdl2_data_files = []
     data_files.append(('pygame/_sdl2', _sdl2_data_files))
+    for type_file in _sdl2:
+        _sdl2_data_files.append(type_file)
 
 # add non .py files in lib directory
 for f in glob.glob(os.path.join('src_py', '*')):
@@ -947,6 +951,7 @@ data_files = [(path, files) for path, files in data_files if files]
 PACKAGEDATA = {
     "cmdclass": cmdclass,
     "packages": ['pygame',
+                 'pygame.threads',
                  'pygame._sdl2',
                  'pygame.tests',
                  'pygame.tests.test_utils',
@@ -955,6 +960,7 @@ PACKAGEDATA = {
                  'pygame.__pyinstaller'],
     "package_dir": {'pygame': 'src_py',
                     'pygame._sdl2': 'src_py/_sdl2',
+                    'pygame.threads': 'src_py/threads',
                     'pygame.tests': 'test',
                     'pygame.docs': 'docs',
                     'pygame.examples': 'examples',
@@ -975,9 +981,11 @@ if STRIPPED:
     PACKAGEDATA = {
         "cmdclass": cmdclass,
         "packages": ['pygame',
+                     'pygame.threads',
                      'pygame._sdl2'],
         "package_dir": {'pygame': 'src_py',
-                        'pygame._sdl2': 'src_py/_sdl2'},
+                        'pygame._sdl2': 'src_py/_sdl2',
+                        'pygame.threads': 'src_py/threads'},
         "ext_modules": extensions,
         "zip_safe": False,
         "data_files": data_files

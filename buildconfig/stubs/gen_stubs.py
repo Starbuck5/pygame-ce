@@ -35,6 +35,7 @@ PG_AUTOIMPORT_SUBMODS = [
     "surfarray",
     "transform",
     "scrap",
+    "threads",
     "version",
     "base",
     "bufferproxy",

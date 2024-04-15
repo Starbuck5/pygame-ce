@@ -876,7 +876,7 @@ class FontTypeTest(unittest.TestCase):
                 ("set_underline", (True,)),
                 ("size", ("any Text",)),
             ]
-            skip_methods = {"get_strikethrough", "set_strikethrough"}
+            version = pygame.freetype.get_version()
         else:
             methods = [
                 ("get_height", tuple()),
@@ -897,23 +897,30 @@ class FontTypeTest(unittest.TestCase):
                 ("set_script", ("is it other text",)),
                 ("set_direction", ("is it text",)),
             ]
-            skip_methods = set()
             version = pygame.font.get_sdl_ttf_version()
             if version >= (2, 0, 18):
                 methods.append(("get_point_size", tuple()))
                 methods.append(("set_point_size", (34,)))
-            else:
-                skip_methods.add("get_point_size")
-                skip_methods.add("set_point_size")
-                skip_methods.add("point_size")
-
-            if version < (2, 20, 0):
-                skip_methods.add("align")
 
         font = pygame_font.Font(None, 10)
         actual_names = []
         for n in sorted(dir(font)):
-            if n in skip_methods:
+            if n == "align" and version < (2, 20, 0):
+                print(f"align skipped for sld ttf version {version} < 2.20.0")
+                continue
+            if n == "point_size" and version < (2, 0, 18):
+                print(f"point_size skipped for sld ttf version {version} < 2.20.0")
+                continue
+            if n == "get_point_size" and version < (2, 0, 18):
+                print(f"get_point_size skipped for sld ttf version {version} < 2.20.0")
+                continue
+            if n == "set_point_size" and version < (2, 0, 18):
+                print(f"set_point_size skipped for sld ttf version {version} < 2.20.0")
+                continue
+            if (
+                n == "get_strikethrough" or n == "set_strikethrough"
+            ) and pygame_font.__name__ == "pygame.ftfont":
+                # this is only emulated in python
                 continue
             if n.startswith("_"):
                 continue
@@ -972,7 +979,7 @@ class FontTypeTest(unittest.TestCase):
                 ("italic", True),
                 ("resolution", None),
             ]
-            skip_properties = {"strikethrough"}
+            version = pygame.freetype.get_version()
         else:
             properties = [
                 ("name", None),
@@ -982,22 +989,24 @@ class FontTypeTest(unittest.TestCase):
                 ("underline", True),
                 ("strikethrough", True),
             ]
-            skip_properties = set()
             version = pygame.font.get_sdl_ttf_version()
             if version >= (2, 20, 0):
                 properties.append(("align", 1))
-            else:
-                skip_properties.add("align")
             if version >= (2, 0, 18):
                 properties.append(("point_size", 1))
-            else:
-                skip_properties.add("point_size")
 
         font = pygame_font.Font(None, 10)
         actual_names = []
 
         for n in sorted(dir(font)):
-            if n in skip_properties:
+            if n == "align" and version < (2, 20, 0):
+                print(f"align skipped for sld ttf version {version} < 2.20.0")
+                continue
+            if n == "point_size" and version < (2, 0, 18):
+                print(f"point_size skipped for sld ttf version {version} < 2.0.18")
+                continue
+            if n == "strikethrough" and pygame_font.__name__ == "pygame.ftfont":
+                # this is only emulated in python
                 continue
             if n.startswith("_"):
                 continue

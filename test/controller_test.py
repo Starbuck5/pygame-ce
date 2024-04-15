@@ -77,19 +77,22 @@ class ControllerTypeTest(unittest.TestCase):
                 return controller.Controller(i)
 
     def test_construction(self):
-        if c := self._get_first_controller():
+        c = self._get_first_controller()
+        if c:
             self.assertIsInstance(c, controller.Controller)
         else:
             self.skipTest("No controller connected")
 
     def test__auto_init(self):
-        if c := self._get_first_controller():
+        c = self._get_first_controller()
+        if c:
             self.assertTrue(c.get_init())
         else:
             self.skipTest("No controller connected")
 
     def test_get_init(self):
-        if c := self._get_first_controller():
+        c = self._get_first_controller()
+        if c:
             self.assertTrue(c.get_init())
             c.quit()
             self.assertFalse(c.get_init())
@@ -108,14 +111,16 @@ class ControllerTypeTest(unittest.TestCase):
         self.assertIsInstance(c, controller.Controller)
 
     def test_as_joystick(self):
-        if c := self._get_first_controller():
+        c = self._get_first_controller()
+        if c:
             joy = c.as_joystick()
             self.assertIsInstance(joy, type(pygame.joystick.Joystick(0)))
         else:
             self.skipTest("No controller connected")
 
     def test_get_mapping(self):
-        if c := self._get_first_controller():
+        c = self._get_first_controller()
+        if c:
             mapping = c.get_mapping()
             self.assertIsInstance(mapping, dict)
             self.assertIsNotNone(mapping["a"])
@@ -123,7 +128,8 @@ class ControllerTypeTest(unittest.TestCase):
             self.skipTest("No controller connected")
 
     def test_set_mapping(self):
-        if c := self._get_first_controller():
+        c = self._get_first_controller()
+        if c:
             mapping = c.get_mapping()
             mapping["a"] = "b3"
             mapping["y"] = "b0"

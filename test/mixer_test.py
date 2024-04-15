@@ -163,7 +163,8 @@ class MixerModuleTest(unittest.TestCase):
         mixer.init()
 
         # test that initially, get_soundfont returns only real files
-        if (initial_sf := mixer.get_soundfont()) is not None:
+        initial_sf = mixer.get_soundfont()
+        if initial_sf is not None:
             for i in initial_sf.split(";"):
                 os.path.exists(i)
 
@@ -551,7 +552,9 @@ class MixerModuleTest(unittest.TestCase):
         filename = example_path(os.path.join("data", "house_lo.wav"))
         sound = mixer.Sound(file=filename)
 
-        if (num_channels := mixer.get_num_channels()) > 0:
+        num_channels = mixer.get_num_channels()
+
+        if num_channels > 0:
             found_channel = mixer.find_channel()
             self.assertIsNotNone(found_channel)
 

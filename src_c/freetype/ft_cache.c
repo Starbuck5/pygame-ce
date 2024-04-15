@@ -134,6 +134,7 @@ int
 _PGFT_Cache_Init(FreeTypeInstance *ft, FontCache *cache)
 {
     int cache_size = MAX(ft->cache_size - 1, PGFT_MIN_CACHE_SIZE - 1);
+    int i;
 
     /*
      * Make sure this is a power of 2.
@@ -146,15 +147,18 @@ _PGFT_Cache_Init(FreeTypeInstance *ft, FontCache *cache)
 
     cache_size = cache_size + 1;
 
-    cache->nodes = _PGFT_calloc((size_t)cache_size, sizeof(FontGlyph *));
+    cache->nodes = _PGFT_malloc((size_t)cache_size * sizeof(FontGlyph *));
     if (!cache->nodes)
         return -1;
-    cache->depths = _PGFT_calloc((size_t)cache_size, sizeof(FT_Byte));
+    for (i = 0; i < cache_size; ++i)
+        cache->nodes[i] = 0;
+    cache->depths = _PGFT_malloc((size_t)cache_size);
     if (!cache->depths) {
         _PGFT_free(cache->nodes);
         cache->nodes = 0;
         return -1;
     }
+    memset(cache->depths, 0, cache_size);
     cache->free_nodes = 0;
     cache->size_mask = (FT_UInt32)(cache_size - 1);
 
@@ -303,12 +307,13 @@ static CacheNode *
 allocate_node(FontCache *cache, const FontRenderMode *render, GlyphIndex_t id,
               void *internal)
 {
-    CacheNode *node = _PGFT_calloc(1, sizeof(CacheNode));
+    CacheNode *node = _PGFT_malloc(sizeof(CacheNode));
     FT_UInt32 bucket;
 
     if (!node) {
         return 0;
     }
+    memset(node, 0, sizeof(CacheNode));
 
     if (_PGFT_LoadGlyph(&node->glyph, id, render, internal)) {
         goto cleanup;

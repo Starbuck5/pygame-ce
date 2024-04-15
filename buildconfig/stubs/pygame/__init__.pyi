@@ -22,6 +22,7 @@ from pygame import (
     surfarray as surfarray,
     transform as transform,
     scrap as scrap,
+    threads as threads,
     version as version,
     base as base,
     bufferproxy as bufferproxy,
