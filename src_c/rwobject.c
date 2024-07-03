@@ -20,16 +20,7 @@
   pete@shinners.org
 */
 
-/*
- *  SDL_RWops support for python objects
- */
-#define NO_PYGAME_C_API
-#define PYGAMEAPI_RWOBJECT_INTERNAL
-#include "pygame.h"
-
-#include "pgcompat.h"
-
-#include "doc/pygame_doc.h"
+#include "rwobject.h"
 
 typedef struct {
     PyObject *read;
@@ -173,7 +164,7 @@ _trydecode_pathlibobj(PyObject *obj)
     return ret;
 }
 
-static PyObject *
+PyObject *
 pg_EncodeString(PyObject *obj, const char *encoding, const char *errors,
                 PyObject *eclass)
 {
@@ -242,7 +233,7 @@ pg_EncodeString(PyObject *obj, const char *encoding, const char *errors,
     Py_RETURN_NONE;
 }
 
-static PyObject *
+PyObject *
 pg_EncodeFilePath(PyObject *obj, PyObject *eclass)
 {
     /* All of this code is a replacement for Py_FileSystemDefaultEncoding,
@@ -301,7 +292,7 @@ pg_EncodeFilePath(PyObject *obj, PyObject *eclass)
     return result;
 }
 
-static int
+int
 pgRWops_IsFileObject(SDL_RWops *rw)
 {
 #if SDL_VERSION_ATLEAST(3, 0, 0)
@@ -476,7 +467,7 @@ _pg_rw_close(SDL_RWops *context)
     return retval;
 }
 
-static SDL_RWops *
+SDL_RWops *
 pgRWops_FromFileObject(PyObject *obj)
 {
     SDL_RWops *rw;
@@ -712,8 +703,12 @@ _rwops_from_pystr(PyObject *obj, char **extptr)
     SDL_ClearError();
 
     PyObject *cwd = NULL, *path = NULL, *isabs = NULL;
-    if (!os_module)
+
+    PyObject* os_module = PyImport_ImportModule("os");
+    if (os_module == NULL) {
+        PyErr_Clear();
         goto simple_case;
+    }
 
     cwd = PyObject_CallMethod(os_module, "getcwd", NULL);
     if (!cwd)
@@ -743,7 +738,7 @@ simple_case:
     return NULL;
 }
 
-static SDL_RWops *
+SDL_RWops *
 pgRWops_FromObject(PyObject *obj, char **extptr)
 {
 #if __EMSCRIPTEN__
@@ -786,7 +781,7 @@ fail:
 #endif
 }
 
-static PyObject *
+PyObject *
 pg_encode_string(PyObject *self, PyObject *args, PyObject *keywds)
 {
     PyObject *obj = NULL;
@@ -807,7 +802,7 @@ pg_encode_string(PyObject *self, PyObject *args, PyObject *keywds)
     return pg_EncodeString(obj, encoding, errors, eclass);
 }
 
-static PyObject *
+PyObject *
 pg_encode_file_path(PyObject *self, PyObject *args, PyObject *keywds)
 {
     PyObject *obj = NULL;
@@ -820,56 +815,4 @@ pg_encode_file_path(PyObject *self, PyObject *args, PyObject *keywds)
     }
 
     return pg_EncodeFilePath(obj, eclass);
-}
-
-static PyMethodDef _pg_rwobject_methods[] = {
-    {"encode_string", (PyCFunction)pg_encode_string,
-     METH_VARARGS | METH_KEYWORDS, DOC_ENCODESTRING},
-    {"encode_file_path", (PyCFunction)pg_encode_file_path,
-     METH_VARARGS | METH_KEYWORDS, DOC_ENCODEFILEPATH},
-    {NULL, NULL, 0, NULL}};
-
-/*DOC*/ static char _pg_rwobject_doc[] =
-    /*DOC*/ "SDL_RWops support";
-
-MODINIT_DEFINE(rwobject)
-{
-    PyObject *module, *apiobj;
-    static void *c_api[PYGAMEAPI_RWOBJECT_NUMSLOTS];
-
-    static struct PyModuleDef _module = {PyModuleDef_HEAD_INIT,
-                                         "rwobject",
-                                         _pg_rwobject_doc,
-                                         -1,
-                                         _pg_rwobject_methods,
-                                         NULL,
-                                         NULL,
-                                         NULL,
-                                         NULL};
-
-    /* Create the module and add the functions */
-    module = PyModule_Create(&_module);
-    if (module == NULL) {
-        return NULL;
-    }
-
-    /* export the c api */
-    c_api[0] = pgRWops_FromObject;
-    c_api[1] = pgRWops_IsFileObject;
-    c_api[2] = pg_EncodeFilePath;
-    c_api[3] = pg_EncodeString;
-    c_api[4] = pgRWops_FromFileObject;
-    apiobj = encapsulate_api(c_api, "rwobject");
-    if (PyModule_AddObject(module, PYGAMEAPI_LOCAL_ENTRY, apiobj)) {
-        Py_XDECREF(apiobj);
-        Py_DECREF(module);
-        return NULL;
-    }
-
-    /* import os, don't sweat if it errors, it will be checked before use */
-    os_module = PyImport_ImportModule("os");
-    if (os_module == NULL)
-        PyErr_Clear();
-
-    return module;
 }

@@ -29,7 +29,6 @@
 #undef import_pygame_geometry
 #undef import_pygame_color
 #undef import_pygame_bufferproxy
-#undef import_pygame_rwobject
 #undef import_pygame_event
 
 void
@@ -59,11 +58,6 @@ import_pygame_color(void)
 
 void
 import_pygame_bufferproxy(void)
-{
-}
-
-void
-import_pygame_rwobject(void)
 {
 }
 

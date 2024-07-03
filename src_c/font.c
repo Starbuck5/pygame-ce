@@ -1306,10 +1306,6 @@ MODINIT_DEFINE(font)
     if (PyErr_Occurred()) {
         return NULL;
     }
-    import_pygame_rwobject();
-    if (PyErr_Occurred()) {
-        return NULL;
-    }
 
     /* type preparation */
     if (PyType_Ready(&PyFont_Type) < 0) {
