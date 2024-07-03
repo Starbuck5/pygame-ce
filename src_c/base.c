@@ -21,8 +21,10 @@
 */
 #define NO_PYGAME_C_API
 #define PYGAMEAPI_BASE_INTERNAL
+#define PYGAMEAPI_RWOBJECT_INTERNAL
 
 #include "pygame.h"
+#include "rwobject.h"
 
 #include <signal.h>
 #include "doc/pygame_doc.h"
@@ -2200,6 +2202,11 @@ static PyMethodDef _base_methods[] = {
 
     {"get_array_interface", (PyCFunction)pg_get_array_interface, METH_O,
      "return an array struct interface as an interface dictionary"},
+
+    {"encode_string", (PyCFunction)pg_encode_string,
+     METH_VARARGS | METH_KEYWORDS, DOC_ENCODESTRING},
+    {"encode_file_path", (PyCFunction)pg_encode_file_path,
+     METH_VARARGS | METH_KEYWORDS, DOC_ENCODEFILEPATH},
     {NULL, NULL, 0, NULL}};
 
 #if defined(BUILD_STATIC) && defined(NO_PYGAME_C_API)
@@ -2296,8 +2303,13 @@ MODINIT_DEFINE(base)
     c_api[26] = pg_TwoDoublesFromFastcallArgs;
     c_api[27] = pg_GetDefaultConvertFormat;
     c_api[28] = pg_SetDefaultConvertFormat;
+    c_api[29] = pgRWops_FromObject;
+    c_api[30] = pgRWops_IsFileObject;
+    c_api[31] = pg_EncodeFilePath;
+    c_api[32] = pg_EncodeString;
+    c_api[33] = pgRWops_FromFileObject;
 
-#define FILLED_SLOTS 29
+#define FILLED_SLOTS 34
 
 #if PYGAMEAPI_BASE_NUMSLOTS != FILLED_SLOTS
 #error export slot count mismatch

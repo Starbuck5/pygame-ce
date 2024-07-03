@@ -1,13 +1,4 @@
 # first the "required" modules
-base = py.extension_module(
-    'base',
-    'base.c',
-    c_args: warnings_error,
-    dependencies: pg_base_deps,
-    install: true,
-    subdir: pg,
-)
-
 color = py.extension_module(
     'color',
     'color.c',
@@ -71,14 +62,32 @@ rect = py.extension_module(
     subdir: pg,
 )
 
-rwobject = py.extension_module(
+#rwobject = py.extension_module(
+#    'rwobject',
+#    'rwobject.c',
+#    c_args: warnings_error,
+#    dependencies: pg_base_deps,
+#    install: true,
+#    subdir: pg,
+#)
+
+rwobject_lib = static_library(
     'rwobject',
     'rwobject.c',
     c_args: warnings_error,
     dependencies: pg_base_deps,
+)
+
+base = py.extension_module(
+    'base',
+    'base.c',
+    c_args: warnings_error,
+    link_with: [rwobject_lib],
+    dependencies: pg_base_deps,
     install: true,
     subdir: pg,
 )
+
 
 simd_blitters_avx2 = static_library(
     'simd_blitters_avx2',
