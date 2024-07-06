@@ -89,6 +89,31 @@ base = py.extension_module(
 )
 
 
+module_a_lib = static_library(
+    'module_a',
+    'module_a.c',
+    c_args: warnings_error,
+    dependencies: pg_base_deps,
+)
+
+module_b_lib = static_library(
+    'module_b',
+    'module_b.c',
+    c_args: warnings_error,
+    dependencies: pg_base_deps,
+)
+
+core = py.extension_module(
+    'core',
+    'core.c',
+    c_args: warnings_error,
+    link_with: [module_a_lib, module_b_lib],
+    dependencies: pg_base_deps,
+    install: true,
+    subdir: pg,    
+)
+
+
 simd_blitters_avx2 = static_library(
     'simd_blitters_avx2',
     'simd_blitters_avx2.c',
