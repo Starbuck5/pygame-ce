@@ -97,6 +97,30 @@ base = py.extension_module(
     subdir: pg,
 )
 
+module_a_lib = static_library(
+    'module_a',
+    'module_a.c',
+    c_args: warnings_error,
+    dependencies: pg_base_deps,
+)
+
+module_b_lib = static_library(
+    'module_b',
+    'module_b.c',
+    c_args: warnings_error,
+    dependencies: pg_base_deps,
+)
+
+core = py.extension_module(
+    'core',
+    'core.c',
+    c_args: warnings_error,
+    link_with: [module_a_lib, module_b_lib],
+    dependencies: pg_base_deps,
+    install: true,
+    subdir: pg,    
+)
+
 # TODO: support SDL3
 if sdl_api != 3
 simd_blitters_avx2 = static_library(
