@@ -12,4 +12,6 @@ int func_a(void);
 
 int func_cross_a(void);
 
+PyObject* construct_module_a(void);
+
 #endif
