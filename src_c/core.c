@@ -29,5 +29,8 @@ MODINIT_DEFINE(core) {
         return NULL;
     }
 
+    PyObject *module_a = construct_module_a();
+    PyModule_AddObject(module, "module_a3", module_a);
+
     return module;
 }

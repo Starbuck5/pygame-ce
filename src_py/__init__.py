@@ -337,6 +337,9 @@ try:
 except (ImportError, OSError):
     typing = MissingModule("typing", urgent=0)
 
+import pygame.core
+
+module_a = pygame.core.module_a3
 
 # there's also a couple "internal" modules not needed
 # by users, but putting them here helps "dependency finder"
