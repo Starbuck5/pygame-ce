@@ -3,7 +3,6 @@
 
 /* Prefix when importing module */
 #define IMPPREFIX "pygame."
-#define IMPPREFIX_BASE "pygame.base."
 
 #include "pgcompat.h"
 
@@ -36,8 +35,9 @@
  */
 #define _IMPORT_PYGAME_MODULE_FROM_BASE(module)                               \
     {                                                                         \
+        PyObject *_mod_##module_core = PyImport_ImportModule("pygame.core");  \
         PyObject *_mod_##module =                                             \
-            PyImport_ImportModule(IMPPREFIX_BASE #module);                    \
+            PyObject_GetAttrString(_mod_##module_core, #module);              \
                                                                               \
         if (_mod_##module != NULL) {                                          \
             PyObject *_c_api =                                                \

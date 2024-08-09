@@ -6,7 +6,6 @@ python_sources = files(
     '_debug.py',
     '_sprite.py',
     'camera.py',
-    'color.py',
     'colordict.py',
     'cursors.py',
     'freetype.py',

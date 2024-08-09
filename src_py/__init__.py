@@ -130,9 +130,11 @@ from pygame.version import *  # pylint: disable=wildcard-import; lgtm[py/polluti
 from pygame.rect import Rect, FRect
 from pygame.rwobject import encode_string, encode_file_path
 import pygame.surflock
-import pygame.color
 
-#Color = pygame.color.Color
+import pygame.core
+color = pygame.core.color
+
+Color = color.Color
 import pygame.bufferproxy
 
 BufferProxy = pygame.bufferproxy.BufferProxy
@@ -361,16 +363,16 @@ copyreg.pickle(Rect, __rect_reduce, __rect_constructor)
 
 
 # make Colors pickleable
-#def __color_constructor(r, g, b, a):
-#    return Color(r, g, b, a)
+def __color_constructor(r, g, b, a):
+    return Color(r, g, b, a)
 
 
-#def __color_reduce(c):
-#    assert isinstance(c, Color)
-#    return __color_constructor, (c.r, c.g, c.b, c.a)
+def __color_reduce(c):
+    assert isinstance(c, Color)
+    return __color_constructor, (c.r, c.g, c.b, c.a)
 
 
-#copyreg.pickle(Color, __color_reduce, __color_constructor)
+copyreg.pickle(Color, __color_reduce, __color_constructor)
 
 if "PYGAME_HIDE_SUPPORT_PROMPT" not in os.environ:
     print(

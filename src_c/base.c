@@ -29,9 +29,6 @@
 #include "pgarrinter.h"
 #include "pgcompat.h"
 
-#define PYGAMEAPI_COLOR_INTERNAL
-#include "color_api.h"
-
 /* This file controls all the initialization of
  * the module and the various SDL subsystems
  */
@@ -2266,16 +2263,6 @@ MODINIT_DEFINE(base)
     Py_XINCREF(pgExc_BufferError);
     if (PyModule_AddObject(module, "BufferError", pgExc_BufferError)) {
         Py_XDECREF(pgExc_BufferError);
-        goto error;
-    }
-
-    PyObject* color_module = PgCreateColorModule();
-    if (color_module == NULL) {
-        goto error;
-    }
-    Py_INCREF(color_module);
-    if (PyModule_AddObject(module, "color", color_module)) {
-        Py_XDECREF(color_module);
         goto error;
     }
     

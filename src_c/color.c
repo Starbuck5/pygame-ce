@@ -2459,10 +2459,10 @@ PyMODINIT_FUNC PgCreateColorModule()
     /* imported needed apis; Do this first so if there is an error
        the module is not loaded.
     */
-    //import_pygame_base();
-    //if (PyErr_Occurred()) {
-    ///    return NULL;
-    //}
+    import_pygame_base();
+    if (PyErr_Occurred()) {
+        return NULL;
+    }
 
     colordict_module = PyImport_ImportModule("pygame.colordict");
     if (!colordict_module) {
