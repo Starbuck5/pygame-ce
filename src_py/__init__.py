@@ -131,10 +131,9 @@ from pygame.rect import Rect, FRect
 from pygame.rwobject import encode_string, encode_file_path
 import pygame.surflock
 
-import pygame.core
-color = pygame.core.color
+import pygame.color
 
-Color = color.Color
+Color = pygame.color.Color
 import pygame.bufferproxy
 
 BufferProxy = pygame.bufferproxy.BufferProxy

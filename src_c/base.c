@@ -2265,7 +2265,7 @@ MODINIT_DEFINE(base)
         Py_XDECREF(pgExc_BufferError);
         goto error;
     }
-    
+
     /* export the c api */
     c_api[0] = pgExc_SDLError;
     c_api[1] = pg_RegisterQuit;
