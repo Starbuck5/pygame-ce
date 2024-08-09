@@ -3,6 +3,7 @@
 
 /* Prefix when importing module */
 #define IMPPREFIX "pygame."
+#define IMPPREFIX_BASE "pygame.base."
 
 #include "pgcompat.h"
 
@@ -15,6 +16,28 @@
 #define _IMPORT_PYGAME_MODULE(module)                                         \
     {                                                                         \
         PyObject *_mod_##module = PyImport_ImportModule(IMPPREFIX #module);   \
+                                                                              \
+        if (_mod_##module != NULL) {                                          \
+            PyObject *_c_api =                                                \
+                PyObject_GetAttrString(_mod_##module, PYGAMEAPI_LOCAL_ENTRY); \
+                                                                              \
+            Py_DECREF(_mod_##module);                                         \
+            if (_c_api != NULL && PyCapsule_CheckExact(_c_api)) {             \
+                void **localptr = (void **)PyCapsule_GetPointer(              \
+                    _c_api, PG_CAPSULE_NAME(#module));                        \
+                _PGSLOTS_##module = localptr;                                 \
+            }                                                                 \
+            Py_XDECREF(_c_api);                                               \
+        }                                                                     \
+    }
+
+/*
+ * fill API slots defined by PYGAMEAPI_DEFINE_SLOTS/PYGAMEAPI_EXTERN_SLOTS
+ */
+#define _IMPORT_PYGAME_MODULE_FROM_BASE(module)                               \
+    {                                                                         \
+        PyObject *_mod_##module =                                             \
+            PyImport_ImportModule(IMPPREFIX_BASE #module);                    \
                                                                               \
         if (_mod_##module != NULL) {                                          \
             PyObject *_c_api =                                                \

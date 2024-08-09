@@ -40,10 +40,9 @@
 #define PYGAMEAPI_COLOR_INTERNAL
 
 #include "doc/color_doc.h"
-
 #include "pygame.h"
-
 #include "pgcompat.h"
+#include "color_api.h"
 
 #include <ctype.h>
 
@@ -205,18 +204,6 @@ _color_getAttr_swizzle(pgColorObject *self, PyObject *attr_name);
 static int
 _color_setAttr_swizzle(pgColorObject *self, PyObject *attr_name,
                        PyObject *val);
-
-/* C API interfaces */
-static PyObject *
-pgColor_New(Uint8 rgba[]);
-static PyObject *
-pgColor_NewLength(Uint8 rgba[], Uint8 length);
-static int
-pg_RGBAFromObjEx(PyObject *color, Uint8 rgba[],
-                 pgColorHandleFlags handle_flags);
-static int
-pg_MappedColorFromObj(PyObject *val, SDL_PixelFormat *format, Uint32 *color,
-                      pgColorHandleFlags handle_flags);
 
 /**
  * Methods, which are bound to the pgColorObject type.
@@ -2454,7 +2441,7 @@ pg_MappedColorFromObj(PyObject *val, SDL_PixelFormat *format, Uint32 *color,
 /*DOC*/ static char _color_doc[] =
     /*DOC*/ "color module for pygame";
 
-MODINIT_DEFINE(color)
+PyMODINIT_FUNC PgCreateColorModule()
 {
     PyObject *module = NULL, *colordict_module, *apiobj;
     static void *c_api[PYGAMEAPI_COLOR_NUMSLOTS];
@@ -2472,10 +2459,10 @@ MODINIT_DEFINE(color)
     /* imported needed apis; Do this first so if there is an error
        the module is not loaded.
     */
-    import_pygame_base();
-    if (PyErr_Occurred()) {
-        return NULL;
-    }
+    //import_pygame_base();
+    //if (PyErr_Occurred()) {
+    ///    return NULL;
+    //}
 
     colordict_module = PyImport_ImportModule("pygame.colordict");
     if (!colordict_module) {

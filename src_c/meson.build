@@ -1,17 +1,16 @@
 # first the "required" modules
+color_lib = static_library(
+    'color',
+    'color.c',
+    c_args: warnings_error,
+    dependencies: pg_base_deps,    
+)
+
 base = py.extension_module(
     'base',
     'base.c',
     c_args: warnings_error,
-    dependencies: pg_base_deps,
-    install: true,
-    subdir: pg,
-)
-
-color = py.extension_module(
-    'color',
-    'color.c',
-    c_args: warnings_error,
+    link_with: [color_lib],
     dependencies: pg_base_deps,
     install: true,
     subdir: pg,
