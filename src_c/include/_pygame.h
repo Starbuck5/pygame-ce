@@ -496,7 +496,6 @@ typedef struct {
 #endif
 
 #define IMPORT_PYGAME_MODULE _IMPORT_PYGAME_MODULE
-#define IMPORT_PYGAME_MODULE_FROM_BASE _IMPORT_PYGAME_MODULE_FROM_BASE
 
 /*
  * base pygame API slots

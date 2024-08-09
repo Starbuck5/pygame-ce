@@ -29,7 +29,7 @@ pg_MappedColorFromObj(PyObject *val, SDL_PixelFormat *format, Uint32 *color,
 #define pgColor_AsArray(x) (((pgColorObject *)x)->data)
 #define pgColor_NumComponents(x) (((pgColorObject *)x)->len)
 
-#define import_pygame_color() IMPORT_PYGAME_MODULE_FROM_BASE(color)
+#define import_pygame_color() IMPORT_PYGAME_MODULE(color)
 
 #endif
 

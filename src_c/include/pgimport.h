@@ -30,29 +30,6 @@
         }                                                                     \
     }
 
-/*
- * fill API slots defined by PYGAMEAPI_DEFINE_SLOTS/PYGAMEAPI_EXTERN_SLOTS
- */
-#define _IMPORT_PYGAME_MODULE_FROM_BASE(module)                               \
-    {                                                                         \
-        PyObject *_mod_##module_core = PyImport_ImportModule("pygame.core");  \
-        PyObject *_mod_##module =                                             \
-            PyObject_GetAttrString(_mod_##module_core, #module);              \
-                                                                              \
-        if (_mod_##module != NULL) {                                          \
-            PyObject *_c_api =                                                \
-                PyObject_GetAttrString(_mod_##module, PYGAMEAPI_LOCAL_ENTRY); \
-                                                                              \
-            Py_DECREF(_mod_##module);                                         \
-            if (_c_api != NULL && PyCapsule_CheckExact(_c_api)) {             \
-                void **localptr = (void **)PyCapsule_GetPointer(              \
-                    _c_api, PG_CAPSULE_NAME(#module));                        \
-                _PGSLOTS_##module = localptr;                                 \
-            }                                                                 \
-            Py_XDECREF(_c_api);                                               \
-        }                                                                     \
-    }
-
 #define PYGAMEAPI_IS_IMPORTED(module) (_PGSLOTS_##module != NULL)
 
 /*
