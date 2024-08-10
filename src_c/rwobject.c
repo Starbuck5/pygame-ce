@@ -299,7 +299,7 @@ _pg_rw_size(SDL_RWops *context)
 
     /* Current file position; need to restore it later.
      */
-    pos = PyObject_CallFunction(helper->tell, NULL);
+    pos = PyObject_CallNoArgs(helper->tell);
     if (!pos) {
         PyErr_Print();
         goto end;
@@ -316,7 +316,7 @@ _pg_rw_size(SDL_RWops *context)
 
     /* Record file size.
      */
-    tmp = PyObject_CallFunction(helper->tell, NULL);
+    tmp = PyObject_CallNoArgs(helper->tell);
     if (!tmp) {
         PyErr_Print();
         goto end;
@@ -387,7 +387,7 @@ _pg_rw_close(SDL_RWops *context)
     PyGILState_STATE state = PyGILState_Ensure();
 
     if (helper->close) {
-        result = PyObject_CallFunction(helper->close, NULL);
+        result = PyObject_CallNoArgs(helper->close);
         if (!result) {
             PyErr_Print();
             retval = -1;
@@ -468,7 +468,7 @@ _pg_rw_seek(SDL_RWops *context, Sint64 offset, int whence)
         Py_DECREF(result);
     }
 
-    result = PyObject_CallFunction(helper->tell, NULL);
+    result = PyObject_CallNoArgs(helper->tell);
     if (!result) {
         PyErr_Print();
         retval = -1;
