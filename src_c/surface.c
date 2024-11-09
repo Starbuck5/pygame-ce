@@ -488,15 +488,7 @@ surface_init(pgSurfaceObject *self, PyObject *args, PyObject *kwds)
                                      &depth, &masks))
         return -1;
 
-    if (PySequence_Check(size) && PySequence_Length(size) == 2) {
-        if ((!pg_IntFromObjIndex(size, 0, &width)) ||
-            (!pg_IntFromObjIndex(size, 1, &height))) {
-            PyErr_SetString(PyExc_ValueError,
-                            "size needs to be (number width, number height)");
-            return -1;
-        }
-    }
-    else {
+    if (!pg_TwoIntsFromObj(size, &width, &height)) {
         PyErr_SetString(PyExc_ValueError,
                         "size needs to be (number width, number height)");
         return -1;
