@@ -488,6 +488,7 @@ surface_init(pgSurfaceObject *self, PyObject *args, PyObject *kwds)
                                      &depth, &masks))
         return -1;
 
+    // IDEALLY we wouldn't add the recursive tuple functionality here.
     if (!pg_TwoIntsFromObj(size, &width, &height)) {
         PyErr_SetString(PyExc_ValueError,
                         "size needs to be (number width, number height)");
