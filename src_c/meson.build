@@ -227,8 +227,6 @@ transform = py.extension_module(
 )
 endif
 
-# TODO: support SDL3
-if sdl_api != 3
 mask = py.extension_module(
     'mask',
     ['mask.c', 'bitmask.c'],
@@ -237,7 +235,6 @@ mask = py.extension_module(
     install: true,
     subdir: pg,
 )
-endif
 
 bufferproxy = py.extension_module(
     'bufferproxy',
