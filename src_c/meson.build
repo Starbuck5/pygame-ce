@@ -266,8 +266,6 @@ math = py.extension_module(
     subdir: pg,
 )
 
-# TODO: support SDL3
-if sdl_api != 3
 pixelcopy = py.extension_module(
     'pixelcopy',
     'pixelcopy.c',
@@ -276,7 +274,6 @@ pixelcopy = py.extension_module(
     install: true,
     subdir: pg,
 )
-endif
 
 newbuffer = py.extension_module(
     'newbuffer',
