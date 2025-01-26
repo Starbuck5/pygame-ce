@@ -786,11 +786,12 @@ set_pixel_color(Uint8 *pixel, Uint8 bpp, Uint32 color)
  *     void
  */
 static void
-set_from_threshold(SDL_Surface *surf, bitmask_t *bitmask, int threshold)
+set_from_threshold(SDL_Surface *surf, PG_PixelFormat *surf_format,
+                   SDL_Palette *surf_palette, bitmask_t *bitmask,
+                   int threshold)
 {
     /* This function expects surf to be non-zero sized. */
-    SDL_PixelFormat *fmt = surf->format;
-    const Uint8 bpp = PG_FORMAT_BytesPerPixel(fmt);
+    const Uint8 bpp = PG_FORMAT_BytesPerPixel(surf_format);
     int x, y, n;
     Uint8 *srcp;
     const int src_skip = surf->pitch - surf->w * bpp;
@@ -799,7 +800,7 @@ set_from_threshold(SDL_Surface *surf, bitmask_t *bitmask, int threshold)
         return;
     }
 
-    if (threshold < 0 || !SDL_ISPIXELFORMAT_ALPHA(fmt->format)) {
+    if (threshold < 0 || !SDL_ISPIXELFORMAT_ALPHA(surf_format->format)) {
         bitmask_fill(bitmask);
         return;
     }
@@ -808,8 +809,8 @@ set_from_threshold(SDL_Surface *surf, bitmask_t *bitmask, int threshold)
         srcp = (Uint8 *)surf->pixels;
         for (y = 0; y < surf->h; ++y) {
             for (x = 0; x < surf->w; ++x, srcp += bpp) {
-                SDL_GetRGBA(bpp == 1 ? *srcp : *((Uint16 *)srcp), fmt, &r, &g,
-                            &b, &a);
+                PG_GetRGBA(bpp == 1 ? *srcp : *((Uint16 *)srcp), surf_format,
+                           surf_palette, &r, &g, &b, &a);
                 if (a > threshold)
                     bitmask_setbit(bitmask, x, y);
             }
@@ -823,9 +824,9 @@ set_from_threshold(SDL_Surface *surf, bitmask_t *bitmask, int threshold)
      * it with the threshold. */
 
 #if SDL_BYTEORDER == SDL_LIL_ENDIAN
-    const char _a_off = fmt->Ashift >> 3;
+    const char _a_off = surf_format->Ashift >> 3;
 #else
-    const char _a_off = 3 - (fmt->Ashift >> 3);
+    const char _a_off = 3 - (surf_format->Ashift >> 3);
 #endif
 
     srcp = (Uint8 *)surf->pixels + _a_off;
@@ -902,6 +903,13 @@ mask_from_surface(PyObject *self, PyObject *args, PyObject *kwargs)
                      "cannot create mask with negative size");
     }
 
+    PG_PixelFormat *surf_format;
+    SDL_Palette *surf_palette;
+
+    if (!PG_GetSurfaceDetails(surf, &surf_format, &surf_palette)) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
     maskobj = CREATE_MASK_OBJ(surf->w, surf->h, 0);
 
     if (NULL == maskobj) {
@@ -925,7 +933,8 @@ mask_from_surface(PyObject *self, PyObject *args, PyObject *kwargs)
         set_from_colorkey(surf, maskobj->mask, colorkey);
     }
     else {  // use threshold
-        set_from_threshold(surf, maskobj->mask, threshold);
+        set_from_threshold(surf, surf_format, surf_palette, maskobj->mask,
+                           threshold);
     }
 
     Py_END_ALLOW_THREADS; /* Obtain the GIL. */
@@ -947,47 +956,57 @@ palette_colors - this only affects surfaces with a palette
 
 */
 
-void
+int
 bitmask_threshold(bitmask_t *m, SDL_Surface *surf, SDL_Surface *surf2,
                   Uint32 color, Uint32 threshold, int palette_colors)
 {
     int x, y, rshift, gshift, bshift, rshift2, gshift2, bshift2;
     int rloss, gloss, bloss, rloss2, gloss2, bloss2;
     Uint8 *pixels, *pixels2;
-    SDL_PixelFormat *format, *format2;
     Uint32 the_color, the_color2, rmask, gmask, bmask, rmask2, gmask2, bmask2;
     Uint8 *pix;
     Uint8 r, g, b, a;
     Uint8 tr, tg, tb, ta;
     int bpp1, bpp2;
+    PG_PixelFormat *format, *format2;
+    SDL_Palette *palette, *palette2;
 
-    format = surf->format;
+    if (!PG_GetSurfaceDetails(surf, &format, &palette)) {
+        PyErr_SetString(pgExc_SDLError, SDL_GetError());
+        return -1;
+    }
+
     rmask = format->Rmask;
     gmask = format->Gmask;
     bmask = format->Bmask;
     rshift = format->Rshift;
     gshift = format->Gshift;
     bshift = format->Bshift;
-    rloss = format->Rloss;
-    gloss = format->Gloss;
-    bloss = format->Bloss;
-    bpp1 = PG_SURF_BytesPerPixel(surf);
+    rloss = PG_FORMAT_R_LOSS(format);
+    gloss = PG_FORMAT_G_LOSS(format);
+    bloss = PG_FORMAT_B_LOSS(format);
+    bpp1 = PG_FORMAT_BytesPerPixel(format);
 
     if (surf2) {
-        format2 = surf2->format;
+        if (!PG_GetSurfaceDetails(surf2, &format2, &palette2)) {
+            PyErr_SetString(pgExc_SDLError, SDL_GetError());
+            return -1;
+        }
         rmask2 = format2->Rmask;
         gmask2 = format2->Gmask;
         bmask2 = format2->Bmask;
         rshift2 = format2->Rshift;
         gshift2 = format2->Gshift;
         bshift2 = format2->Bshift;
-        rloss2 = format2->Rloss;
-        gloss2 = format2->Gloss;
-        bloss2 = format2->Bloss;
+        rloss2 = PG_FORMAT_R_LOSS(format);
+        gloss2 = PG_FORMAT_G_LOSS(format);
+        bloss2 = PG_FORMAT_B_LOSS(format);
         pixels2 = (Uint8 *)surf2->pixels;
-        bpp2 = PG_SURF_BytesPerPixel(surf);
+        bpp2 = PG_FORMAT_BytesPerPixel(format2);
     }
     else { /* make gcc stop complaining */
+        format2 = NULL;
+        palette2 = NULL;
         rmask2 = gmask2 = bmask2 = 0;
         rshift2 = gshift2 = bshift2 = 0;
         rloss2 = gloss2 = bloss2 = 0;
@@ -996,8 +1015,8 @@ bitmask_threshold(bitmask_t *m, SDL_Surface *surf, SDL_Surface *surf2,
         bpp2 = 0;
     }
 
-    SDL_GetRGBA(color, format, &r, &g, &b, &a);
-    SDL_GetRGBA(threshold, format, &tr, &tg, &tb, &ta);
+    PG_GetRGBA(color, format, palette, &r, &g, &b, &a);
+    PG_GetRGBA(threshold, format, palette, &tr, &tg, &tb, &ta);
 
     for (y = 0; y < surf->h; y++) {
         pixels = (Uint8 *)surf->pixels + y * surf->pitch;
@@ -1101,6 +1120,7 @@ bitmask_threshold(bitmask_t *m, SDL_Surface *surf, SDL_Surface *surf2,
             }
         }
     }
+    return 0;  // No errors!
 }
 
 static PyObject *
@@ -1115,6 +1135,7 @@ mask_from_threshold(PyObject *self, PyObject *args, PyObject *kwargs)
     Uint32 color;
     Uint32 color_threshold;
     int palette_colors = 1;
+    int threshold_ret = 0;
     static char *keywords[] = {"surface",      "color",          "threshold",
                                "othersurface", "palette_colors", NULL};
 
@@ -1141,9 +1162,15 @@ mask_from_threshold(PyObject *self, PyObject *args, PyObject *kwargs)
         }
     }
     else {
+#if SDL_VERSION_ATLEAST(3, 0, 0)
+        color_threshold =
+            SDL_MapSurfaceRGBA(surf, rgba_threshold[0], rgba_threshold[1],
+                               rgba_threshold[2], rgba_threshold[3]);
+#else
         color_threshold =
             SDL_MapRGBA(surf->format, rgba_threshold[0], rgba_threshold[1],
                         rgba_threshold[2], rgba_threshold[3]);
+#endif
     }
 
     maskobj = CREATE_MASK_OBJ(surf->w, surf->h, 0);
@@ -1158,13 +1185,18 @@ mask_from_threshold(PyObject *self, PyObject *args, PyObject *kwargs)
     }
 
     Py_BEGIN_ALLOW_THREADS;
-    bitmask_threshold(maskobj->mask, surf, surf2, color, color_threshold,
-                      palette_colors);
+    threshold_ret = bitmask_threshold(maskobj->mask, surf, surf2, color,
+                                      color_threshold, palette_colors);
     Py_END_ALLOW_THREADS;
 
     pgSurface_Unlock(surfobj);
     if (surfobj2) {
         pgSurface_Unlock(surfobj2);
+    }
+
+    // Python exception already set.
+    if (threshold_ret < 0) {
+        return NULL;
     }
 
     return (PyObject *)maskobj;
@@ -1922,8 +1954,13 @@ extract_color(SDL_Surface *surf, PyObject *color_obj, Uint8 rgba_color[],
               Uint32 *color)
 {
     if (NULL == color_obj) {
+#if SDL_VERSION_ATLEAST(3, 0, 0)
+        *color = SDL_MapSurfaceRGBA(surf, rgba_color[0], rgba_color[1],
+                                    rgba_color[2], rgba_color[3]);
+#else
         *color = SDL_MapRGBA(surf->format, rgba_color[0], rgba_color[1],
                              rgba_color[2], rgba_color[3]);
+#endif
         return 1;
     }
 
