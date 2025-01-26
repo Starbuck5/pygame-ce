@@ -971,6 +971,21 @@ _array_assign_array(pgPixelArrayObject *array, Py_ssize_t low, Py_ssize_t high,
         return -1;
     }
 
+#if SDL_VERSION_ATLEAST(3, 0, 0)
+    const SDL_PixelFormatDetails *surf_format =
+        SDL_GetPixelFormatDetails(surf->format);
+    const SDL_PixelFormatDetails *val_surf_format =
+        SDL_GetPixelFormatDetails(val_surf->format);
+
+    if (surf_format == NULL || val_surf_format) {
+        PyErr_SetString(pgExc_SDLError, SDL_GetError());
+        return -1;
+    }
+#else
+    SDL_PixelFormat *surf_format = surf->format;
+    SDL_PixelFormat *val_surf_format = val_surf->format;
+#endif
+
     /* If we reassign the same array, we need to copy the pixels
      * first. */
     if (SURFACE_EQUALS(array, val)) {
@@ -1021,20 +1036,23 @@ _array_assign_array(pgPixelArrayObject *array, Py_ssize_t low, Py_ssize_t high,
             }
             break;
         case 3: {
+// Note:
+// Why is the 24 bit case pixelformat aware but none of the rest are?
+// - Starbuck, jan. 2025
 #if (SDL_BYTEORDER == SDL_LIL_ENDIAN)
-            Uint32 Roffset = surf->format->Rshift >> 3;
-            Uint32 Goffset = surf->format->Gshift >> 3;
-            Uint32 Boffset = surf->format->Bshift >> 3;
-            Uint32 vRoffset = val_surf->format->Rshift >> 3;
-            Uint32 vGoffset = val_surf->format->Gshift >> 3;
-            Uint32 vBoffset = val_surf->format->Bshift >> 3;
+            Uint32 Roffset = surf_format->Rshift >> 3;
+            Uint32 Goffset = surf_format->Gshift >> 3;
+            Uint32 Boffset = surf_format->Bshift >> 3;
+            Uint32 vRoffset = val_surf_format->Rshift >> 3;
+            Uint32 vGoffset = val_surf_format->Gshift >> 3;
+            Uint32 vBoffset = val_surf_format->Bshift >> 3;
 #else
-            Uint32 Roffset = 2 - (surf->format->Rshift >> 3);
-            Uint32 Goffset = 2 - (surf->format->Gshift >> 3);
-            Uint32 Boffset = 2 - (surf->format->Bshift >> 3);
-            Uint32 vRoffset = 2 - (val_surf->format->Rshift >> 3);
-            Uint32 vGoffset = 2 - (val_surf->format->Gshift >> 3);
-            Uint32 vBoffset = 2 - (val_surf->format->Bshift >> 3);
+            Uint32 Roffset = 2 - (surf_format->Rshift >> 3);
+            Uint32 Goffset = 2 - (surf_format->Gshift >> 3);
+            Uint32 Boffset = 2 - (surf_format->Bshift >> 3);
+            Uint32 vRoffset = 2 - (val_surf_format->Rshift >> 3);
+            Uint32 vGoffset = 2 - (val_surf_format->Gshift >> 3);
+            Uint32 vBoffset = 2 - (val_surf_format->Bshift >> 3);
 #endif
             for (y = 0; y < dim1; ++y) {
                 pixel_p = pixelrow;
@@ -1076,7 +1094,6 @@ _array_assign_sequence(pgPixelArrayObject *array, Py_ssize_t low,
                        Py_ssize_t high, PyObject *val)
 {
     SDL_Surface *surf = pgSurface_AsSurface(array->surface);
-    SDL_PixelFormat *format;
     Py_ssize_t dim0 = ABS(high - low);
     Py_ssize_t dim1 = array->shape[1];
     Py_ssize_t stride0 = high >= low ? array->strides[0] : -array->strides[0];
@@ -1097,8 +1114,19 @@ _array_assign_sequence(pgPixelArrayObject *array, Py_ssize_t low,
         return -1;
     }
 
-    format = surf->format;
-    bpp = PG_FORMAT_BytesPerPixel(format);
+#if SDL_VERSION_ATLEAST(3, 0, 0)
+    const SDL_PixelFormatDetails *surf_format =
+        SDL_GetPixelFormatDetails(surf->format);
+
+    if (surf_format == NULL) {
+        PyErr_SetString(pgExc_SDLError, SDL_GetError());
+        return -1;
+    }
+#else
+    SDL_PixelFormat *surf_format = surf->format;
+#endif
+
+    bpp = PG_FORMAT_BytesPerPixel(surf_format);
 
     if (!dim1) {
         dim1 = 1;
@@ -1150,13 +1178,13 @@ _array_assign_sequence(pgPixelArrayObject *array, Py_ssize_t low,
             break;
         case 3: {
 #if (SDL_BYTEORDER == SDL_LIL_ENDIAN)
-            Uint32 Roffset = surf->format->Rshift >> 3;
-            Uint32 Goffset = surf->format->Gshift >> 3;
-            Uint32 Boffset = surf->format->Bshift >> 3;
+            Uint32 Roffset = surf_format->Rshift >> 3;
+            Uint32 Goffset = surf_format->Gshift >> 3;
+            Uint32 Boffset = surf_format->Bshift >> 3;
 #else
-            Uint32 Roffset = 2 - (surf->format->Rshift >> 3);
-            Uint32 Goffset = 2 - (surf->format->Gshift >> 3);
-            Uint32 Boffset = 2 - (surf->format->Bshift >> 3);
+            Uint32 Roffset = 2 - (surf_format->Rshift >> 3);
+            Uint32 Goffset = 2 - (surf_format->Gshift >> 3);
+            Uint32 Boffset = 2 - (surf_format->Bshift >> 3);
 #endif
             for (y = 0; y < dim1; ++y) {
                 pixel_p = pixelrow;
@@ -1206,7 +1234,19 @@ _array_assign_slice(pgPixelArrayObject *array, Py_ssize_t low, Py_ssize_t high,
     Py_ssize_t x;
     Py_ssize_t y;
 
-    bpp = PG_SURF_BytesPerPixel(surf);
+#if SDL_VERSION_ATLEAST(3, 0, 0)
+    const SDL_PixelFormatDetails *surf_format =
+        SDL_GetPixelFormatDetails(surf->format);
+
+    if (surf_format == NULL) {
+        PyErr_SetString(pgExc_SDLError, SDL_GetError());
+        return -1;
+    }
+#else
+    SDL_PixelFormat *surf_format = surf->format;
+#endif
+
+    bpp = PG_FORMAT_BytesPerPixel(surf_format);
 
     if (!dim1) {
         dim1 = 1;
@@ -1241,13 +1281,13 @@ _array_assign_slice(pgPixelArrayObject *array, Py_ssize_t low, Py_ssize_t high,
         } break;
         case 3: {
 #if (SDL_BYTEORDER == SDL_LIL_ENDIAN)
-            Uint32 Roffset = surf->format->Rshift >> 3;
-            Uint32 Goffset = surf->format->Gshift >> 3;
-            Uint32 Boffset = surf->format->Bshift >> 3;
+            Uint32 Roffset = surf_format->Rshift >> 3;
+            Uint32 Goffset = surf_format->Gshift >> 3;
+            Uint32 Boffset = surf_format->Bshift >> 3;
 #else
-            Uint32 Roffset = 2 - (surf->format->Rshift >> 3);
-            Uint32 Goffset = 2 - (surf->format->Gshift >> 3);
-            Uint32 Boffset = 2 - (surf->format->Bshift >> 3);
+            Uint32 Roffset = 2 - (surf_format->Rshift >> 3);
+            Uint32 Goffset = 2 - (surf_format->Gshift >> 3);
+            Uint32 Boffset = 2 - (surf_format->Bshift >> 3);
 #endif
             Uint8 r = (Uint8)(color >> 16);
             Uint8 g = (Uint8)(color >> 8);
@@ -1352,6 +1392,18 @@ _pxarray_ass_item(pgPixelArrayObject *array, Py_ssize_t index, PyObject *value)
         dim1 = 1;
     }
 
+#if SDL_VERSION_ATLEAST(3, 0, 0)
+    const SDL_PixelFormatDetails *surf_format =
+        SDL_GetPixelFormatDetails(surf->format);
+
+    if (surf_format == NULL) {
+        PyErr_SetString(pgExc_SDLError, SDL_GetError());
+        return -1;
+    }
+#else
+    SDL_PixelFormat *surf_format = surf->format;
+#endif
+
     Py_BEGIN_ALLOW_THREADS;
     /* Single value assignment. */
     switch (bpp) {
@@ -1369,13 +1421,13 @@ _pxarray_ass_item(pgPixelArrayObject *array, Py_ssize_t index, PyObject *value)
             break;
         case 3: {
 #if (SDL_BYTEORDER == SDL_LIL_ENDIAN)
-            Uint32 Roffset = surf->format->Rshift >> 3;
-            Uint32 Goffset = surf->format->Gshift >> 3;
-            Uint32 Boffset = surf->format->Bshift >> 3;
+            Uint32 Roffset = surf_format->Rshift >> 3;
+            Uint32 Goffset = surf_format->Gshift >> 3;
+            Uint32 Boffset = surf_format->Bshift >> 3;
 #else
-            Uint32 Roffset = 2 - (surf->format->Rshift >> 3);
-            Uint32 Goffset = 2 - (surf->format->Gshift >> 3);
-            Uint32 Boffset = 2 - (surf->format->Bshift >> 3);
+            Uint32 Roffset = 2 - (surf_format->Rshift >> 3);
+            Uint32 Goffset = 2 - (surf_format->Gshift >> 3);
+            Uint32 Boffset = 2 - (surf_format->Bshift >> 3);
 #endif
             for (y = 0; y < dim1; ++y) {
                 pixel_p[Roffset] = (Uint8)(color >> 16);
