@@ -153,6 +153,15 @@ PG_GetSurfaceFormat(SDL_Surface *surf)
 
 #define PG_GetSurfaceClipRect SDL_GetSurfaceClipRect
 
+#define PG_GetSurfaceBlendMode SDL_GetSurfaceBlendMode
+#define PG_SetSurfaceBlendMode SDL_SetSurfaceBlendMode
+#define PG_GetSurfaceAlphaMod SDL_GetSurfaceAlphaMod
+#define PG_SetSurfaceAlphaMod SDL_SetSurfaceAlphaMod
+#define PG_FillSurfaceRect SDL_FillSurfaceRect
+#define PG_SetPaletteColors SDL_SetPaletteColors
+#define PG_SetSurfacePalette SDL_SetSurfacePalette
+#define PG_UpdateWindowSurface SDL_UpdateWindowSurface
+
 #else /* ~SDL_VERSION_ATLEAST(3, 0, 0)*/
 #define PG_ShowCursor() SDL_ShowCursor(SDL_ENABLE)
 #define PG_HideCursor() SDL_ShowCursor(SDL_DISABLE)
@@ -292,6 +301,56 @@ PG_GetSurfaceClipRect(SDL_Surface *surface, SDL_Rect *rect)
     *rect = surface->clip_rect;
     return true;
 }
+
+static inline bool
+PG_GetSurfaceBlendMode(SDL_Surface *surface, SDL_BlendMode *blendMode)
+{
+    return SDL_GetSurfaceBlendMode(surface, blendMode) == 0;
+}
+
+static inline bool
+PG_SetSurfaceBlendMode(SDL_Surface *surface, SDL_BlendMode blendMode)
+{
+    return SDL_SetSurfaceBlendMode(surface, blendMode) == 0;
+}
+
+static inline bool
+PG_GetSurfaceAlphaMod(SDL_Surface *surface, Uint8 *alpha)
+{
+    return SDL_GetSurfaceAlphaMod(surface, alpha) == 0;
+}
+
+static inline bool
+PG_SetSurfaceAlphaMod(SDL_Surface *surface, Uint8 alpha)
+{
+    return SDL_SetSurfaceAlphaMod(surface, alpha) == 0;
+}
+
+static inline bool
+PG_FillSurfaceRect(SDL_Surface *dst, const SDL_Rect *rect, Uint32 color)
+{
+    return SDL_FillRect(dst, rect, color) == 0;
+}
+
+static inline bool
+PG_SetPaletteColors(SDL_Palette *palette, const SDL_Color *colors,
+                    int firstcolor, int ncolors)
+{
+    return SDL_SetPaletteColors(palette, colors, firstcolor, ncolors) == 0;
+}
+
+static inline bool
+PG_SetSurfacePalette(SDL_Surface *surface, SDL_Palette *palette)
+{
+    return SDL_SetSurfacePalette(surface, palette) == 0;
+}
+
+static inline bool
+PG_UpdateWindowSurface(SDL_Window *window)
+{
+    return SDL_UpdateWindowSurface(window) == 0;
+}
+
 #endif
 
 /* DictProxy is useful for event posting with an arbitrary dict. Maintains

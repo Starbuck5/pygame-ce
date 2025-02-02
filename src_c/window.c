@@ -201,7 +201,7 @@ window_get_surface(pgWindowObject *self, PyObject *_null)
 static PyObject *
 window_flip(pgWindowObject *self, PyObject *_null)
 {
-    int result;
+    bool result;
 
     if (self->context == NULL) {
         if (!self->surf) {
@@ -211,9 +211,9 @@ window_flip(pgWindowObject *self, PyObject *_null)
         }
 
         Py_BEGIN_ALLOW_THREADS;
-        result = SDL_UpdateWindowSurface(self->_win);
+        result = PG_UpdateWindowSurface(self->_win);
         Py_END_ALLOW_THREADS;
-        if (result) {
+        if (!result) {
             return RAISE(pgExc_SDLError, SDL_GetError());
         }
     }
@@ -1001,9 +1001,9 @@ window_init(pgWindowObject *self, PyObject *args, PyObject *kwargs)
 
     // ensure display is init at this point, display init automatically calls
     // the window init in this module
-    if (!pg_mod_autoinit(IMPPREFIX "display")) {
-        return -1;
-    }
+    // if (!pg_mod_autoinit(IMPPREFIX "display")) {
+    //    return -1;
+    //}
 
     _kw = PyDict_New();
     if (!_kw) {

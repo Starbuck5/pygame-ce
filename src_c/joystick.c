@@ -212,7 +212,7 @@ joy_get_guid(PyObject *self, PyObject *_null)
     }
     else {
 #if SDL_VERSION_ATLEAST(3, 0, 0)
-        return RAISE(pgExc_SDLError, "Invalid/closed joystick object");
+        guid = SDL_GetJoystickGUIDForID(pgJoystick_AsID(self));
 #else
         guid = SDL_JoystickGetDeviceGUID(pgJoystick_AsID(self));
 #endif
