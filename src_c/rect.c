@@ -78,7 +78,7 @@ four_floats_from_obj(PyObject *obj, float *val1, float *val2, float *val3,
 #define RectExport_collidedictall pg_rect_collidedictall
 #define RectExport_clip pg_rect_clip
 #define RectExport_clipline pg_rect_clipline
-#define RectExport_do_rects_intresect _pg_do_rects_intersect
+#define RectExport_do_rects_intersect _pg_do_rects_intersect
 #define RectExport_RectFromObject pgRect_FromObject
 #define RectExport_RectFromFastcallArgs pgRect_FromFastcallArgs
 #define RectExport_RectNew pgRect_New
@@ -195,7 +195,7 @@ four_floats_from_obj(PyObject *obj, float *val1, float *val2, float *val3,
 #define RectExport_collidedictall pg_frect_collidedictall
 #define RectExport_clip pg_frect_clip
 #define RectExport_clipline pg_frect_clipline
-#define RectExport_do_rects_intresect _pg_do_frects_intersect
+#define RectExport_do_rects_intersect _pg_do_frects_intersect
 #define RectExport_RectFromObject pgFRect_FromObject
 #define RectExport_RectFromFastcallArgs pgFRect_FromFastcallArgs
 #define RectExport_RectNew pgFRect_New

@@ -131,8 +131,8 @@
 #ifndef RectExport_RectNew
 #error RectExport_RectNew needs to be defined
 #endif
-#ifndef RectExport_do_rects_intresect
-#error RectExport_do_rects_intresect needs to be Defined
+#ifndef RectExport_do_rects_intersect
+#error RectExport_do_rects_intersect needs to be Defined
 #endif
 #ifndef RectExport_RectNew4
 #error RectExport_RectNew4 needs to be defined
@@ -412,7 +412,7 @@
 #define pgRectAsRect(x) (((RectObject *)x)->r)
 
 static int
-RectExport_do_rects_intresect(InnerRect *A, InnerRect *B)
+RectExport_do_rects_intersect(InnerRect *A, InnerRect *B)
 {
     if (A->w == 0 || A->h == 0 || B->w == 0 || B->h == 0) {
         // zero sized rects should not collide with anything #1197
@@ -428,8 +428,6 @@ RectExport_do_rects_intresect(InnerRect *A, InnerRect *B)
             MAX(A->x, A->x + A->w) > MIN(B->x, B->x + B->w) &&
             MAX(A->y, A->y + A->h) > MIN(B->y, B->y + B->h));
 }
-
-#define _pg_do_rects_intersect RectExport_do_rects_intresect
 
 static PG_INLINE InnerRect *
 RectExport_RectFromObject(PyObject *obj, InnerRect *temp);
@@ -1369,7 +1367,7 @@ RectExport_colliderect(RectObject *self, PyObject *const *args,
         return RAISE(PyExc_TypeError, "Argument must be rect style object");
     }
 
-    return PyBool_FromLong(_pg_do_rects_intersect(&self->r, argrect));
+    return PyBool_FromLong(RectExport_do_rects_intersect(&self->r, argrect));
 }
 
 #ifndef OPTIMIZED_COLLIDERECT_SETUP
@@ -2923,7 +2921,7 @@ RectExport_iterator(RectObject *self)
 #undef RectExport_pgTwoValuesFromFastcallArgs
 #undef RectExport_clip
 #undef RectExport_clipline
-#undef RectExport_do_rects_intresect
+#undef RectExport_do_rects_intersect
 #undef RectExport_RectFromObject
 #undef RectExport_RectFromFastcallArgs
 #undef RectExport_RectNew
@@ -3023,7 +3021,6 @@ RectExport_iterator(RectObject *self)
 #undef PrimitiveFromObj
 #undef TypeFMT
 #undef pgRectAsRect
-#undef _pg_do_rects_intersect
 #undef ObjectName
 #undef PythonNumberCheck
 #undef PythonNumberAsPrimitiveType
