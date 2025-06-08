@@ -49,12 +49,11 @@ static int
 four_floats_from_obj(PyObject *obj, float *val1, float *val2, float *val3,
                      float *val4);
 
+#define RECT_FUNCTION_PREFIX pg_rect
 #define RectExport_init pg_rect_init
-#define RectExport_subtypeNew4 _pg_rect_subtype_new4
 #define RectExport_new pg_rect_new
 #define RectExport_dealloc pg_rect_dealloc
 #define RectExport_normalize pg_rect_normalize
-#define RectExport_pgTwoValuesFromFastcallArgs pgTwoValuesFromFastcallArgs_i
 #define RectExport_move pg_rect_move
 #define RectExport_moveIp pg_rect_move_ip
 #define RectExport_moveTo pg_rect_move_to
@@ -71,20 +70,16 @@ four_floats_from_obj(PyObject *obj, float *val1, float *val2, float *val3,
 #define RectExport_colliderect pg_rect_colliderect
 #define RectExport_collidelist pg_rect_collidelist
 #define RectExport_collidelistall pg_rect_collidelistall
-#define RectExport_RectFromObjectAndKeyFunc pgRect_FromObjectAndKeyFunc
 #define RectExport_collideobjectsall pg_rect_collideobjectsall
 #define RectExport_collideobjects pg_rect_collideobjects
 #define RectExport_collidedict pg_rect_collidedict
 #define RectExport_collidedictall pg_rect_collidedictall
 #define RectExport_clip pg_rect_clip
 #define RectExport_clipline pg_rect_clipline
-#define RectExport_do_rects_intersect _pg_do_rects_intersect
 #define RectExport_RectFromObject pgRect_FromObject
-#define RectExport_RectFromFastcallArgs pgRect_FromFastcallArgs
 #define RectExport_RectNew pgRect_New
 #define RectExport_RectNew4 pgRect_New4
 #define RectExport_Normalize pgRect_Normalize
-#define RectExport_contains_internal _pg_rect_contains
 #define RectExport_contains pg_rect_contains
 #define RectExport_containsSeq pg_rect_contains_seq
 #define RectExport_clamp pg_rect_clamp
@@ -166,13 +161,12 @@ four_floats_from_obj(PyObject *obj, float *val1, float *val2, float *val3,
 #endif /* PYPY_VERSION */
 #include "rect_impl.h"
 
+#define RECT_FUNCTION_PREFIX pg_frect
 #define RectExport_init pg_frect_init
-#define RectExport_subtypeNew4 _pg_frect_subtype_new4
 #define RectExport_new pg_frect_new
 #define RectExport_dealloc pg_frect_dealloc
 #define RectExport_normalize pg_frect_normalize
 #define RectExport_move pg_frect_move
-#define RectExport_pgTwoValuesFromFastcallArgs pgTwoValuesFromFastcallArgs_f
 #define RectExport_moveIp pg_frect_move_ip
 #define RectExport_moveTo pg_frect_move_to
 #define RectExport_inflate pg_frect_inflate
@@ -188,20 +182,16 @@ four_floats_from_obj(PyObject *obj, float *val1, float *val2, float *val3,
 #define RectExport_colliderect pg_frect_colliderect
 #define RectExport_collidelist pg_frect_collidelist
 #define RectExport_collidelistall pg_frect_collidelistall
-#define RectExport_RectFromObjectAndKeyFunc pgFRect_FromObjectAndKeyFunc
 #define RectExport_collideobjectsall pg_frect_collideobjectsall
 #define RectExport_collideobjects pg_frect_collideobjects
 #define RectExport_collidedict pg_frect_collidedict
 #define RectExport_collidedictall pg_frect_collidedictall
 #define RectExport_clip pg_frect_clip
 #define RectExport_clipline pg_frect_clipline
-#define RectExport_do_rects_intersect _pg_do_frects_intersect
 #define RectExport_RectFromObject pgFRect_FromObject
-#define RectExport_RectFromFastcallArgs pgFRect_FromFastcallArgs
 #define RectExport_RectNew pgFRect_New
 #define RectExport_RectNew4 pgFRect_New4
 #define RectExport_Normalize pgFRect_Normalize
-#define RectExport_contains_internal _pg_frect_contains
 #define RectExport_contains pg_frect_contains
 #define RectExport_containsSeq pg_frect_contains_seq
 #define RectExport_clamp pg_frect_clamp
