@@ -104,6 +104,60 @@ _pg_surface_iterator_read_24(pg_surface_iterator_context *context)
 }
 
 void
+_pg_surface_iterator_read_32(pg_surface_iterator_context *context)
+{
+    uint32_t Rmask = context->_pxfmt->Rmask;
+    uint32_t Gmask = context->_pxfmt->Gmask;
+    uint32_t Bmask = context->_pxfmt->Bmask;
+    uint32_t Amask = context->_pxfmt->Amask;
+    uint32_t Rshift = context->_pxfmt->Rshift;
+    uint32_t Gshift = context->_pxfmt->Gshift;
+    uint32_t Bshift = context->_pxfmt->Bshift;
+    uint32_t Ashift = context->_pxfmt->Ashift;
+
+    if (context->_remaining_width_batches != 0) {
+        uint32_t *px_ptr = (uint32_t *)context->_px_ptr;
+        context->pixels.p1.r = (px_ptr[0] & Rmask) >> Rshift;
+        context->pixels.p1.g = (px_ptr[0] & Gmask) >> Gshift;
+        context->pixels.p1.b = (px_ptr[0] & Bmask) >> Bshift;
+        context->pixels.p1.a = (px_ptr[0] & Amask) >> Ashift;
+        context->pixels.p2.r = (px_ptr[1] & Rmask) >> Rshift;
+        context->pixels.p2.g = (px_ptr[1] & Gmask) >> Gshift;
+        context->pixels.p2.b = (px_ptr[1] & Bmask) >> Bshift;
+        context->pixels.p2.a = (px_ptr[1] & Amask) >> Ashift;
+        context->pixels.p3.r = (px_ptr[2] & Rmask) >> Rshift;
+        context->pixels.p3.g = (px_ptr[2] & Gmask) >> Gshift;
+        context->pixels.p3.b = (px_ptr[2] & Bmask) >> Bshift;
+        context->pixels.p3.a = (px_ptr[2] & Amask) >> Ashift;
+        context->pixels.p4.r = (px_ptr[3] & Rmask) >> Rshift;
+        context->pixels.p4.g = (px_ptr[3] & Gmask) >> Gshift;
+        context->pixels.p4.b = (px_ptr[3] & Bmask) >> Bshift;
+        context->pixels.p4.a = (px_ptr[3] & Amask) >> Ashift;
+        context->_px_ptr += 16;
+        context->_remaining_width_batches--;
+        return;
+    }
+
+    // If no remaining batches of 4, process any remaining and prepare for next
+    // row
+    for (int i = 0; i < context->_surf_w_num_post4; i++) {
+        uint32_t *px_ptr = (uint32_t *)context->_px_ptr;
+        context->arr_pixels.arr[i].r = (px_ptr[0] & Rmask) >> Rshift;
+        context->arr_pixels.arr[i].g = (px_ptr[0] & Gmask) >> Gshift;
+        context->arr_pixels.arr[i].b = (px_ptr[0] & Bmask) >> Bshift;
+        context->arr_pixels.arr[i].a = (px_ptr[0] & Amask) >> Ashift;
+        context->_px_ptr += 4;
+    }
+    context->_px_ptr += context->_surf_w_post_skip;
+    context->_remaining_rows--;
+    context->_remaining_width_batches = context->_surf_w_num_batches4;
+
+    if (context->_remaining_rows < 0) {
+        context->done = true;
+    }
+}
+
+void
 _pg_surface_iterator_read_generic(pg_surface_iterator_context *context)
 {
     if (context->_remaining_width_batches != 0) {
@@ -192,18 +246,18 @@ _pg_surface_iterator_read_generic(pg_surface_iterator_context *context)
                 context->_px_ptr += 12;
                 break;
             default: /* case 4 */
-                PG_GetRGBA(*((uint32_t *)context->_px_ptr + 0), context->_pxfmt,
-                           context->_palette, &(context->pixels.p1.r),
-                           &(context->pixels.p1.g), &(context->pixels.p1.b),
-                           &(context->pixels.p1.a));
-                PG_GetRGBA(*((uint32_t *)context->_px_ptr + 1), context->_pxfmt,
-                           context->_palette, &(context->pixels.p2.r),
-                           &(context->pixels.p2.g), &(context->pixels.p2.b),
-                           &(context->pixels.p2.a));
-                PG_GetRGBA(*((uint32_t *)context->_px_ptr + 2), context->_pxfmt,
-                           context->_palette, &(context->pixels.p3.r),
-                           &(context->pixels.p3.g), &(context->pixels.p3.b),
-                           &(context->pixels.p3.a));
+                PG_GetRGBA(*((uint32_t *)context->_px_ptr + 0),
+                           context->_pxfmt, context->_palette,
+                           &(context->pixels.p1.r), &(context->pixels.p1.g),
+                           &(context->pixels.p1.b), &(context->pixels.p1.a));
+                PG_GetRGBA(*((uint32_t *)context->_px_ptr + 1),
+                           context->_pxfmt, context->_palette,
+                           &(context->pixels.p2.r), &(context->pixels.p2.g),
+                           &(context->pixels.p2.b), &(context->pixels.p2.a));
+                PG_GetRGBA(*((uint32_t *)context->_px_ptr + 2),
+                           context->_pxfmt, context->_palette,
+                           &(context->pixels.p3.r), &(context->pixels.p3.g),
+                           &(context->pixels.p3.b), &(context->pixels.p3.a));
                 PG_GetRGBA(*((uint32_t *)context->_px_ptr + 3),
                            context->_pxfmt, context->_palette,
                            &(context->pixels.p4.r), &(context->pixels.p4.g),
@@ -256,8 +310,9 @@ _pg_surface_iterator_read_generic(pg_surface_iterator_context *context)
                 context->_px_ptr += 3;
                 break;
             default: /* case 4 */
-                PG_GetRGBA(*((uint32_t *)context->_px_ptr + 0), context->_pxfmt,
-                           context->_palette, &(context->arr_pixels.arr[i].r),
+                PG_GetRGBA(*((uint32_t *)context->_px_ptr + 0),
+                           context->_pxfmt, context->_palette,
+                           &(context->arr_pixels.arr[i].r),
                            &(context->arr_pixels.arr[i].g),
                            &(context->arr_pixels.arr[i].b),
                            &(context->arr_pixels.arr[i].a));
@@ -330,6 +385,63 @@ _pg_surface_iterator_write_24(pg_surface_iterator_context *context)
         memcpy(context->_px_ptr + 0, &p_mapped, 3 * sizeof(Uint8));
 
         context->_px_ptr += 3;
+    }
+    context->_px_ptr += context->_surf_w_post_skip;
+    context->_remaining_rows--;
+    context->_remaining_width_batches = context->_surf_w_num_batches4;
+
+    if (context->_remaining_rows < 0) {
+        context->done = true;
+    }
+}
+
+void
+_pg_surface_iterator_write_32(pg_surface_iterator_context *context)
+{
+    uint32_t Rloss = PG_FORMAT_R_LOSS(context->_pxfmt);
+    uint32_t Gloss = PG_FORMAT_G_LOSS(context->_pxfmt);
+    uint32_t Bloss = PG_FORMAT_B_LOSS(context->_pxfmt);
+    uint32_t Aloss = PG_FORMAT_A_LOSS(context->_pxfmt);
+    uint32_t Rshift = context->_pxfmt->Rshift;
+    uint32_t Gshift = context->_pxfmt->Gshift;
+    uint32_t Bshift = context->_pxfmt->Bshift;
+    uint32_t Ashift = context->_pxfmt->Ashift;
+
+    if (context->_remaining_width_batches != 0) {
+        *((uint32_t *)context->_px_ptr + 0) =
+            ((uint32_t)(context->pixels.p1.r >> Rloss) << Rshift) |
+            ((uint32_t)(context->pixels.p1.g >> Gloss) << Gshift) |
+            ((uint32_t)(context->pixels.p1.b >> Bloss) << Bshift) |
+            ((uint32_t)(context->pixels.p1.a >> Aloss) << Ashift);
+        *((uint32_t *)context->_px_ptr + 1) =
+            ((uint32_t)(context->pixels.p2.r >> Rloss) << Rshift) |
+            ((uint32_t)(context->pixels.p2.g >> Gloss) << Gshift) |
+            ((uint32_t)(context->pixels.p2.b >> Bloss) << Bshift) |
+            ((uint32_t)(context->pixels.p2.a >> Aloss) << Ashift);
+        *((uint32_t *)context->_px_ptr + 2) =
+            ((uint32_t)(context->pixels.p3.r >> Rloss) << Rshift) |
+            ((uint32_t)(context->pixels.p3.g >> Gloss) << Gshift) |
+            ((uint32_t)(context->pixels.p3.b >> Bloss) << Bshift) |
+            ((uint32_t)(context->pixels.p3.a >> Aloss) << Ashift);
+        *((uint32_t *)context->_px_ptr + 3) =
+            ((uint32_t)(context->pixels.p4.r >> Rloss) << Rshift) |
+            ((uint32_t)(context->pixels.p4.g >> Gloss) << Gshift) |
+            ((uint32_t)(context->pixels.p4.b >> Bloss) << Bshift) |
+            ((uint32_t)(context->pixels.p4.a >> Aloss) << Ashift);
+        context->_px_ptr += 16;
+        context->_remaining_width_batches--;
+        return;
+    }
+
+    // If no remaining batches of 4, process any remaining and prepare for next
+    // row
+    for (int i = 0; i < context->_surf_w_num_post4; i++) {
+        *((uint32_t *)context->_px_ptr + 0) =
+            ((uint32_t)(context->arr_pixels.arr[i].r >> Rloss) << Rshift) |
+            ((uint32_t)(context->arr_pixels.arr[i].g >> Gloss) << Gshift) |
+            ((uint32_t)(context->arr_pixels.arr[i].b >> Bloss) << Bshift) |
+            ((uint32_t)(context->arr_pixels.arr[i].a >> Aloss) << Ashift);
+        context->_px_ptr += 4;
     }
     context->_px_ptr += context->_surf_w_post_skip;
     context->_remaining_rows--;
@@ -511,9 +623,15 @@ _pg_surface_iterator_create_generic(SDL_Surface *surface,
     context->_remaining_rows = surface->h;
     context->_remaining_width_batches = context->_surf_w_num_batches4;
 
-    if (PG_FORMAT_BitsPerPixel(context->_pxfmt) == 24) {
+    int surf_bits = PG_FORMAT_BitsPerPixel(context->_pxfmt);
+
+    if (surf_bits == 24) {
         context->_read_impl = _pg_surface_iterator_read_24;
         context->_write_impl = _pg_surface_iterator_write_24;
+    }
+    else if (surf_bits == 32) {
+        context->_read_impl = _pg_surface_iterator_read_32;
+        context->_write_impl = _pg_surface_iterator_write_32;
     }
     else {
         context->_read_impl = _pg_surface_iterator_read_generic;
