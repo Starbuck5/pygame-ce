@@ -20,8 +20,15 @@ typedef struct {
 } pg_surface_iterator_buffer;
 
 typedef struct {
+    SDL_Color arr[4];
+} pg_surface_iterator_arr_buffer;
+
+typedef struct {
     /* public */
-    pg_surface_iterator_buffer pixels;
+    union {
+        pg_surface_iterator_buffer pixels;
+        pg_surface_iterator_arr_buffer arr_pixels;
+    };
     bool done;  // readonly
 
     /* private */
@@ -104,19 +111,11 @@ _pg_surface_iterator_read_24(pg_surface_iterator_context *context)
     // If no remaining batches of 4, process any remaining and prepare for next
     // row
     for (int i = 0; i < context->_surf_w_num_post4; i++) {
-#if SDL_BYTEORDER == SDL_LIL_ENDIAN
-        PG_GetRGBA(context->_px_ptr[0] + (context->_px_ptr[1] << 8) +
-                       (context->_px_ptr[2] << 16),
-                   context->_pxfmt, context->_palette, &(context->pixels.p1.r),
-                   &(context->pixels.p1.g), &(context->pixels.p1.b),
-                   &(context->pixels.p1.a));
-#else
-        PG_GetRGBA(context->_px_ptr[2] + context->_px_ptr[1]
-                       << 8 + context->_px_ptr[0] << 16,
-                   context->_pxfmt, context->_palette, &(context->pixels.p1.r),
-                   &(context->pixels.p1.g), &(context->pixels.p1.b),
-                   &(context->pixels.p1.a));
-#endif
+        uint32_t p_raw;
+        memcpy(&p_raw, context->_px_ptr + 0, 3 * sizeof(Uint8));
+        context->arr_pixels.arr[i].r = (p_raw & Rmask) >> Rshift;
+        context->arr_pixels.arr[i].g = (p_raw & Gmask) >> Gshift;
+        context->arr_pixels.arr[i].b = (p_raw & Bmask) >> Bshift;
         context->_px_ptr += 3;
     }
     context->_px_ptr += context->_surf_w_post_skip;
@@ -246,15 +245,17 @@ _pg_surface_iterator_read_generic(pg_surface_iterator_context *context)
         switch (context->_surf_bpp) {
             case 1:
                 PG_GetRGBA(*(context->_px_ptr++), context->_pxfmt,
-                           context->_palette, &(context->pixels.p1.r),
-                           &(context->pixels.p1.g), &(context->pixels.p1.b),
-                           &(context->pixels.p1.a));
+                           context->_palette, &(context->arr_pixels.arr[i].r),
+                           &(context->arr_pixels.arr[i].g),
+                           &(context->arr_pixels.arr[i].b),
+                           &(context->arr_pixels.arr[i].a));
                 break;
             case 2:
                 PG_GetRGBA(*((uint16_t *)context->_px_ptr[0]), context->_pxfmt,
-                           context->_palette, &(context->pixels.p1.r),
-                           &(context->pixels.p1.g), &(context->pixels.p1.b),
-                           &(context->pixels.p1.a));
+                           context->_palette, &(context->arr_pixels.arr[i].r),
+                           &(context->arr_pixels.arr[i].g),
+                           &(context->arr_pixels.arr[i].b),
+                           &(context->arr_pixels.arr[i].a));
                 context->_px_ptr += 2;
                 break;
             case 3:
@@ -262,22 +263,27 @@ _pg_surface_iterator_read_generic(pg_surface_iterator_context *context)
                 PG_GetRGBA(context->_px_ptr[0] + (context->_px_ptr[1] << 8) +
                                (context->_px_ptr[2] << 16),
                            context->_pxfmt, context->_palette,
-                           &(context->pixels.p1.r), &(context->pixels.p1.g),
-                           &(context->pixels.p1.b), &(context->pixels.p1.a));
+                           &(context->arr_pixels.arr[i].r),
+                           &(context->arr_pixels.arr[i].g),
+                           &(context->arr_pixels.arr[i].b),
+                           &(context->arr_pixels.arr[i].a));
 #else
                 PG_GetRGBA(context->_px_ptr[2] + context->_px_ptr[1]
                                << 8 + context->_px_ptr[0] << 16,
                            context->_pxfmt, context->_palette,
-                           &(context->pixels.p1.r), &(context->pixels.p1.g),
-                           &(context->pixels.p1.b), &(context->pixels.p1.a));
+                           &(context->arr_pixels.arr[i].r),
+                           &(context->arr_pixels.arr[i].g),
+                           &(context->arr_pixels.arr[i].b),
+                           &(context->arr_pixels.arr[i].a));
 #endif
                 context->_px_ptr += 3;
                 break;
             default: /* case 4 */
                 PG_GetRGBA(*((uint32_t *)context->_px_ptr[0]), context->_pxfmt,
-                           context->_palette, &(context->pixels.p1.r),
-                           &(context->pixels.p1.g), &(context->pixels.p1.b),
-                           &(context->pixels.p1.a));
+                           context->_palette, &(context->arr_pixels.arr[i].r),
+                           &(context->arr_pixels.arr[i].g),
+                           &(context->arr_pixels.arr[i].b),
+                           &(context->arr_pixels.arr[i].a));
                 context->_px_ptr += 4;
                 break;
         }
@@ -317,7 +323,7 @@ _pg_surface_iterator_write_24(pg_surface_iterator_context *context)
         uint32_t p4_mapped =
             ((uint32_t)(context->pixels.p4.r >> Rloss) << Rshift) |
             ((uint32_t)(context->pixels.p4.g >> Gloss) << Gshift) |
-            ((uint32_t)(context->pixels.p4.b >> Bloss) << Bshift);        
+            ((uint32_t)(context->pixels.p4.b >> Bloss) << Bshift);
 #if SDL_BYTEORDER == SDL_BIG_ENDIAN
         p1_mapped <<= 8;
         p2_mapped <<= 8;
@@ -334,46 +340,19 @@ _pg_surface_iterator_write_24(pg_surface_iterator_context *context)
         return;
     }
 
-    // TODO ERROR: batch processing at end is only using the value of the first
-    // pixel
-
     // If no remaining batches of 4, process any remaining and prepare for next
     // row
     for (int i = 0; i < context->_surf_w_num_post4; i++) {
-        switch (context->_surf_bpp) {
-            case 1:
-                context->_px_ptr[0] = (uint8_t)PG_MapRGBA(
-                    context->_pxfmt, context->_palette, context->pixels.p1.r,
-                    context->pixels.p1.g, context->pixels.p1.b,
-                    context->pixels.p1.a);
-                context->_px_ptr += 1;
-                break;
-            case 2:
-                *(uint16_t *)context->_px_ptr[0] = (uint16_t)PG_MapRGBA(
-                    context->_pxfmt, context->_palette, context->pixels.p1.r,
-                    context->pixels.p1.g, context->pixels.p1.b,
-                    context->pixels.p1.a);
-                context->_px_ptr += 2;
-                break;
-            case 3:
-                uint32_t p1_mapped =
-                    PG_MapRGBA(context->_pxfmt, context->_palette,
-                               context->pixels.p1.r, context->pixels.p1.g,
-                               context->pixels.p1.b, context->pixels.p1.a);
+        uint32_t p_mapped =
+            ((uint32_t)(context->arr_pixels.arr[i].r >> Rloss) << Rshift) |
+            ((uint32_t)(context->arr_pixels.arr[i].g >> Gloss) << Gshift) |
+            ((uint32_t)(context->arr_pixels.arr[i].b >> Bloss) << Bshift);
 #if SDL_BYTEORDER == SDL_BIG_ENDIAN
-                p1_mapped <<= 8;
+        p_mapped <<= 8;
 #endif
-                memcpy(context->_px_ptr + 0, &p1_mapped, 3 * sizeof(Uint8));
-                context->_px_ptr += 3;
-                break;
-            default: /* case 4 */
-                *(uint32_t *)context->_px_ptr[0] =
-                    PG_MapRGBA(context->_pxfmt, context->_palette,
-                               context->pixels.p1.r, context->pixels.p1.g,
-                               context->pixels.p1.b, context->pixels.p1.a);
-                context->_px_ptr += 4;
-                break;
-        }
+        memcpy(context->_px_ptr + 0, &p_mapped, 3 * sizeof(Uint8));
+
+        context->_px_ptr += 3;
     }
     context->_px_ptr += context->_surf_w_post_skip;
     context->_remaining_rows--;
@@ -480,32 +459,32 @@ _pg_surface_iterator_write_generic(pg_surface_iterator_context *context)
         return;
     }
 
-    // TODO ERROR: batch processing at end is only using the value of the first
-    // pixel
-
     // If no remaining batches of 4, process any remaining and prepare for next
     // row
     for (int i = 0; i < context->_surf_w_num_post4; i++) {
         switch (context->_surf_bpp) {
             case 1:
                 context->_px_ptr[0] = (uint8_t)PG_MapRGBA(
-                    context->_pxfmt, context->_palette, context->pixels.p1.r,
-                    context->pixels.p1.g, context->pixels.p1.b,
-                    context->pixels.p1.a);
+                    context->_pxfmt, context->_palette,
+                    context->arr_pixels.arr[i].r, context->arr_pixels.arr[i].g,
+                    context->arr_pixels.arr[i].b,
+                    context->arr_pixels.arr[i].a);
                 context->_px_ptr += 1;
                 break;
             case 2:
                 *(uint16_t *)context->_px_ptr[0] = (uint16_t)PG_MapRGBA(
-                    context->_pxfmt, context->_palette, context->pixels.p1.r,
-                    context->pixels.p1.g, context->pixels.p1.b,
-                    context->pixels.p1.a);
+                    context->_pxfmt, context->_palette,
+                    context->arr_pixels.arr[i].r, context->arr_pixels.arr[i].g,
+                    context->arr_pixels.arr[i].b,
+                    context->arr_pixels.arr[i].a);
                 context->_px_ptr += 2;
                 break;
             case 3:
-                uint32_t p1_mapped =
-                    PG_MapRGBA(context->_pxfmt, context->_palette,
-                               context->pixels.p1.r, context->pixels.p1.g,
-                               context->pixels.p1.b, context->pixels.p1.a);
+                uint32_t p1_mapped = PG_MapRGBA(
+                    context->_pxfmt, context->_palette,
+                    context->arr_pixels.arr[i].r, context->arr_pixels.arr[i].g,
+                    context->arr_pixels.arr[i].b,
+                    context->arr_pixels.arr[i].a);
 #if SDL_BYTEORDER == SDL_BIG_ENDIAN
                 p1_mapped <<= 8;
 #endif
@@ -513,10 +492,11 @@ _pg_surface_iterator_write_generic(pg_surface_iterator_context *context)
                 context->_px_ptr += 3;
                 break;
             default: /* case 4 */
-                *(uint32_t *)context->_px_ptr[0] =
-                    PG_MapRGBA(context->_pxfmt, context->_palette,
-                               context->pixels.p1.r, context->pixels.p1.g,
-                               context->pixels.p1.b, context->pixels.p1.a);
+                *(uint32_t *)context->_px_ptr[0] = PG_MapRGBA(
+                    context->_pxfmt, context->_palette,
+                    context->arr_pixels.arr[i].r, context->arr_pixels.arr[i].g,
+                    context->arr_pixels.arr[i].b,
+                    context->arr_pixels.arr[i].a);
                 context->_px_ptr += 4;
                 break;
         }
