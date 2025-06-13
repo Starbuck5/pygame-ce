@@ -66,6 +66,69 @@ _pg_surface_iterator_create_generic(SDL_Surface *surface,
 }
 
 void
+_pg_surface_iterator_read_24(pg_surface_iterator_context *context)
+{
+    uint32_t Rmask = context->_pxfmt->Rmask;
+    uint32_t Gmask = context->_pxfmt->Gmask;
+    uint32_t Bmask = context->_pxfmt->Bmask;
+    uint32_t Rshift = context->_pxfmt->Rshift;
+    uint32_t Gshift = context->_pxfmt->Gshift;
+    uint32_t Bshift = context->_pxfmt->Bshift;
+
+    if (context->_remaining_width_batches != 0) {
+        // TODO is this actually endian independent?
+        uint32_t p1_raw, p2_raw, p3_raw, p4_raw;
+        memcpy(&p1_raw, context->_px_ptr + 0, 3 * sizeof(Uint8));
+        memcpy(&p2_raw, context->_px_ptr + 3, 3 * sizeof(Uint8));
+        memcpy(&p3_raw, context->_px_ptr + 6, 3 * sizeof(Uint8));
+        memcpy(&p4_raw, context->_px_ptr + 9, 3 * sizeof(Uint8));
+
+        context->pixels.p1.r = (p1_raw & Rmask) >> Rshift;
+        context->pixels.p1.g = (p1_raw & Gmask) >> Gshift;
+        context->pixels.p1.b = (p1_raw & Bmask) >> Bshift;
+        context->pixels.p2.r = (p2_raw & Rmask) >> Rshift;
+        context->pixels.p2.g = (p2_raw & Gmask) >> Gshift;
+        context->pixels.p2.b = (p2_raw & Bmask) >> Bshift;
+        context->pixels.p3.r = (p3_raw & Rmask) >> Rshift;
+        context->pixels.p3.g = (p3_raw & Gmask) >> Gshift;
+        context->pixels.p3.b = (p3_raw & Bmask) >> Bshift;
+        context->pixels.p4.r = (p4_raw & Rmask) >> Rshift;
+        context->pixels.p4.g = (p4_raw & Gmask) >> Gshift;
+        context->pixels.p4.b = (p4_raw & Bmask) >> Bshift;
+
+        context->_px_ptr += 12;
+        context->_remaining_width_batches--;
+        return;
+    }
+
+    // If no remaining batches of 4, process any remaining and prepare for next
+    // row
+    for (int i = 0; i < context->_surf_w_num_post4; i++) {
+#if SDL_BYTEORDER == SDL_LIL_ENDIAN
+        PG_GetRGBA(context->_px_ptr[0] + (context->_px_ptr[1] << 8) +
+                       (context->_px_ptr[2] << 16),
+                   context->_pxfmt, context->_palette, &(context->pixels.p1.r),
+                   &(context->pixels.p1.g), &(context->pixels.p1.b),
+                   &(context->pixels.p1.a));
+#else
+        PG_GetRGBA(context->_px_ptr[2] + context->_px_ptr[1]
+                       << 8 + context->_px_ptr[0] << 16,
+                   context->_pxfmt, context->_palette, &(context->pixels.p1.r),
+                   &(context->pixels.p1.g), &(context->pixels.p1.b),
+                   &(context->pixels.p1.a));
+#endif
+        context->_px_ptr += 3;
+    }
+    context->_px_ptr += context->_surf_w_post_skip;
+    context->_remaining_rows--;
+    context->_remaining_width_batches = context->_surf_w_num_batches4;
+
+    if (context->_remaining_rows < 0) {
+        context->done = true;
+    }
+}
+
+void
 _pg_surface_iterator_read_generic(pg_surface_iterator_context *context)
 {
     if (context->_remaining_width_batches != 0) {
@@ -109,23 +172,23 @@ _pg_surface_iterator_read_generic(pg_surface_iterator_context *context)
                 break;
             case 3:
 #if SDL_BYTEORDER == SDL_LIL_ENDIAN
-                PG_GetRGBA(context->_px_ptr[0] + (context->_px_ptr[1]
-                               << 8) + (context->_px_ptr[2] << 16),
+                PG_GetRGBA(context->_px_ptr[0] + (context->_px_ptr[1] << 8) +
+                               (context->_px_ptr[2] << 16),
                            context->_pxfmt, context->_palette,
                            &(context->pixels.p1.r), &(context->pixels.p1.g),
                            &(context->pixels.p1.b), &(context->pixels.p1.a));
-                PG_GetRGBA(context->_px_ptr[3] + (context->_px_ptr[4]
-                               << 8) + (context->_px_ptr[5] << 16),
+                PG_GetRGBA(context->_px_ptr[3] + (context->_px_ptr[4] << 8) +
+                               (context->_px_ptr[5] << 16),
                            context->_pxfmt, context->_palette,
                            &(context->pixels.p2.r), &(context->pixels.p2.g),
                            &(context->pixels.p2.b), &(context->pixels.p2.a));
-                PG_GetRGBA(context->_px_ptr[6] + (context->_px_ptr[7]
-                               << 8) + (context->_px_ptr[8] << 16),
+                PG_GetRGBA(context->_px_ptr[6] + (context->_px_ptr[7] << 8) +
+                               (context->_px_ptr[8] << 16),
                            context->_pxfmt, context->_palette,
                            &(context->pixels.p3.r), &(context->pixels.p3.g),
                            &(context->pixels.p3.b), &(context->pixels.p3.a));
-                PG_GetRGBA(context->_px_ptr[9] + (context->_px_ptr[10]
-                               << 8) + (context->_px_ptr[11] << 16),
+                PG_GetRGBA(context->_px_ptr[9] + (context->_px_ptr[10] << 8) +
+                               (context->_px_ptr[11] << 16),
                            context->_pxfmt, context->_palette,
                            &(context->pixels.p4.r), &(context->pixels.p4.g),
                            &(context->pixels.p4.b), &(context->pixels.p4.a));
@@ -196,8 +259,8 @@ _pg_surface_iterator_read_generic(pg_surface_iterator_context *context)
                 break;
             case 3:
 #if SDL_BYTEORDER == SDL_LIL_ENDIAN
-                PG_GetRGBA(context->_px_ptr[0] + (context->_px_ptr[1]
-                               << 8) + (context->_px_ptr[2] << 16),
+                PG_GetRGBA(context->_px_ptr[0] + (context->_px_ptr[1] << 8) +
+                               (context->_px_ptr[2] << 16),
                            context->_pxfmt, context->_palette,
                            &(context->pixels.p1.r), &(context->pixels.p1.g),
                            &(context->pixels.p1.b), &(context->pixels.p1.a));
@@ -215,6 +278,99 @@ _pg_surface_iterator_read_generic(pg_surface_iterator_context *context)
                            context->_palette, &(context->pixels.p1.r),
                            &(context->pixels.p1.g), &(context->pixels.p1.b),
                            &(context->pixels.p1.a));
+                context->_px_ptr += 4;
+                break;
+        }
+    }
+    context->_px_ptr += context->_surf_w_post_skip;
+    context->_remaining_rows--;
+    context->_remaining_width_batches = context->_surf_w_num_batches4;
+
+    if (context->_remaining_rows < 0) {
+        context->done = true;
+    }
+}
+
+void
+_pg_surface_iterator_write_24(pg_surface_iterator_context *context)
+{
+    uint32_t Rloss = PG_FORMAT_R_LOSS(context->_pxfmt);
+    uint32_t Gloss = PG_FORMAT_G_LOSS(context->_pxfmt);
+    uint32_t Bloss = PG_FORMAT_B_LOSS(context->_pxfmt);
+    uint32_t Rshift = context->_pxfmt->Rshift;
+    uint32_t Gshift = context->_pxfmt->Gshift;
+    uint32_t Bshift = context->_pxfmt->Bshift;
+
+    if (context->_remaining_width_batches != 0) {
+        uint32_t p1_mapped =
+            ((uint32_t)(context->pixels.p1.r >> Rloss) << Rshift) |
+            ((uint32_t)(context->pixels.p1.g >> Gloss) << Gshift) |
+            ((uint32_t)(context->pixels.p1.b >> Bloss) << Bshift);
+        uint32_t p2_mapped =
+            ((uint32_t)(context->pixels.p2.r >> Rloss) << Rshift) |
+            ((uint32_t)(context->pixels.p2.g >> Gloss) << Gshift) |
+            ((uint32_t)(context->pixels.p2.b >> Bloss) << Bshift);
+        uint32_t p3_mapped =
+            ((uint32_t)(context->pixels.p3.r >> Rloss) << Rshift) |
+            ((uint32_t)(context->pixels.p3.g >> Gloss) << Gshift) |
+            ((uint32_t)(context->pixels.p3.b >> Bloss) << Bshift);
+        uint32_t p4_mapped =
+            ((uint32_t)(context->pixels.p4.r >> Rloss) << Rshift) |
+            ((uint32_t)(context->pixels.p4.g >> Gloss) << Gshift) |
+            ((uint32_t)(context->pixels.p4.b >> Bloss) << Bshift);        
+#if SDL_BYTEORDER == SDL_BIG_ENDIAN
+        p1_mapped <<= 8;
+        p2_mapped <<= 8;
+        p3_mapped <<= 8;
+        p4_mapped <<= 8;
+#endif
+        memcpy(context->_px_ptr + 0, &p1_mapped, 3 * sizeof(Uint8));
+        memcpy(context->_px_ptr + 3, &p2_mapped, 3 * sizeof(Uint8));
+        memcpy(context->_px_ptr + 6, &p3_mapped, 3 * sizeof(Uint8));
+        memcpy(context->_px_ptr + 9, &p4_mapped, 3 * sizeof(Uint8));
+        context->_px_ptr += 12;
+
+        context->_remaining_width_batches--;
+        return;
+    }
+
+    // TODO ERROR: batch processing at end is only using the value of the first
+    // pixel
+
+    // If no remaining batches of 4, process any remaining and prepare for next
+    // row
+    for (int i = 0; i < context->_surf_w_num_post4; i++) {
+        switch (context->_surf_bpp) {
+            case 1:
+                context->_px_ptr[0] = (uint8_t)PG_MapRGBA(
+                    context->_pxfmt, context->_palette, context->pixels.p1.r,
+                    context->pixels.p1.g, context->pixels.p1.b,
+                    context->pixels.p1.a);
+                context->_px_ptr += 1;
+                break;
+            case 2:
+                *(uint16_t *)context->_px_ptr[0] = (uint16_t)PG_MapRGBA(
+                    context->_pxfmt, context->_palette, context->pixels.p1.r,
+                    context->pixels.p1.g, context->pixels.p1.b,
+                    context->pixels.p1.a);
+                context->_px_ptr += 2;
+                break;
+            case 3:
+                uint32_t p1_mapped =
+                    PG_MapRGBA(context->_pxfmt, context->_palette,
+                               context->pixels.p1.r, context->pixels.p1.g,
+                               context->pixels.p1.b, context->pixels.p1.a);
+#if SDL_BYTEORDER == SDL_BIG_ENDIAN
+                p1_mapped <<= 8;
+#endif
+                memcpy(context->_px_ptr + 0, &p1_mapped, 3 * sizeof(Uint8));
+                context->_px_ptr += 3;
+                break;
+            default: /* case 4 */
+                *(uint32_t *)context->_px_ptr[0] =
+                    PG_MapRGBA(context->_pxfmt, context->_palette,
+                               context->pixels.p1.r, context->pixels.p1.g,
+                               context->pixels.p1.b, context->pixels.p1.a);
                 context->_px_ptr += 4;
                 break;
         }
@@ -294,10 +450,10 @@ _pg_surface_iterator_write_generic(pg_surface_iterator_context *context)
                 p3_mapped <<= 8;
                 p4_mapped <<= 8;
 #endif
-                memcpy(context->_px_ptr+0, &p1_mapped, 3 * sizeof(Uint8));
-                memcpy(context->_px_ptr+3, &p2_mapped, 3 * sizeof(Uint8));
-                memcpy(context->_px_ptr+6, &p3_mapped, 3 * sizeof(Uint8));
-                memcpy(context->_px_ptr+9, &p4_mapped, 3 * sizeof(Uint8));
+                memcpy(context->_px_ptr + 0, &p1_mapped, 3 * sizeof(Uint8));
+                memcpy(context->_px_ptr + 3, &p2_mapped, 3 * sizeof(Uint8));
+                memcpy(context->_px_ptr + 6, &p3_mapped, 3 * sizeof(Uint8));
+                memcpy(context->_px_ptr + 9, &p4_mapped, 3 * sizeof(Uint8));
                 context->_px_ptr += 12;
                 break;
             default: /* case 4 */
@@ -324,7 +480,8 @@ _pg_surface_iterator_write_generic(pg_surface_iterator_context *context)
         return;
     }
 
-    // TODO ERROR: batch processing at end is only using the value of the first pixel
+    // TODO ERROR: batch processing at end is only using the value of the first
+    // pixel
 
     // If no remaining batches of 4, process any remaining and prepare for next
     // row
@@ -352,7 +509,7 @@ _pg_surface_iterator_write_generic(pg_surface_iterator_context *context)
 #if SDL_BYTEORDER == SDL_BIG_ENDIAN
                 p1_mapped <<= 8;
 #endif
-                memcpy(context->_px_ptr+0, &p1_mapped, 3 * sizeof(Uint8));
+                memcpy(context->_px_ptr + 0, &p1_mapped, 3 * sizeof(Uint8));
                 context->_px_ptr += 3;
                 break;
             default: /* case 4 */
@@ -385,7 +542,7 @@ void
 pg_surface_iterator_read(pg_surface_iterator_context *context)
 {
     if (!context->done) {
-        _pg_surface_iterator_read_generic(context);
+        _pg_surface_iterator_read_24(context);
     }
 }
 
@@ -393,6 +550,6 @@ void
 pg_surface_iterator_write(pg_surface_iterator_context *context)
 {
     if (!context->done) {
-        _pg_surface_iterator_write_generic(context);
+        _pg_surface_iterator_write_24(context);
     }
 }
