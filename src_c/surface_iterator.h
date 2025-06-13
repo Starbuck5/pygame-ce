@@ -43,34 +43,10 @@ typedef struct {
     uint8_t *_px_ptr;
     int _remaining_rows;
     int _remaining_width_batches;
+
+    void *_read_impl;
+    void *_write_impl;
 } pg_surface_iterator_context;
-
-bool
-_pg_surface_iterator_create_generic(SDL_Surface *surface,
-                                    pg_surface_iterator_context *context)
-{
-    if (!PG_GetSurfaceDetails(surface, &(context->_pxfmt),
-                              &(context->_palette))) {
-        return false;
-    }
-
-    int surf_bpp = PG_FORMAT_BytesPerPixel(context->_pxfmt);
-
-    if (surf_bpp < 1 || surf_bpp > 4) {
-        SDL_SetError("Unsupported surface type for this operation");
-        return false;
-    }
-
-    context->_surf_w_num_batches4 = surface->w / 4;
-    context->_surf_w_num_post4 = surface->w % 4;
-    context->_surf_w_post_skip = surface->pitch - (surface->w * surf_bpp);
-    context->_surf_bpp = surf_bpp;
-    context->_px_ptr = (uint8_t *)surface->pixels;
-    context->_remaining_rows = surface->h;
-    context->_remaining_width_batches = context->_surf_w_num_batches4;
-
-    return true;
-}
 
 void
 _pg_surface_iterator_read_24(pg_surface_iterator_context *context)
@@ -511,6 +487,42 @@ _pg_surface_iterator_write_generic(pg_surface_iterator_context *context)
 }
 
 bool
+_pg_surface_iterator_create_generic(SDL_Surface *surface,
+                                    pg_surface_iterator_context *context)
+{
+    if (!PG_GetSurfaceDetails(surface, &(context->_pxfmt),
+                              &(context->_palette))) {
+        return false;
+    }
+
+    int surf_bpp = PG_FORMAT_BytesPerPixel(context->_pxfmt);
+
+    if (surf_bpp < 1 || surf_bpp > 4) {
+        SDL_SetError("Unsupported surface type for this operation");
+        return false;
+    }
+
+    context->_surf_w_num_batches4 = surface->w / 4;
+    context->_surf_w_num_post4 = surface->w % 4;
+    context->_surf_w_post_skip = surface->pitch - (surface->w * surf_bpp);
+    context->_surf_bpp = surf_bpp;
+    context->_px_ptr = (uint8_t *)surface->pixels;
+    context->_remaining_rows = surface->h;
+    context->_remaining_width_batches = context->_surf_w_num_batches4;
+
+    if (PG_FORMAT_BitsPerPixel(context->_pxfmt) == 24) {
+        context->_read_impl = _pg_surface_iterator_read_24;
+        context->_write_impl = _pg_surface_iterator_write_24;
+    }
+    else {
+        context->_read_impl = _pg_surface_iterator_read_generic;
+        context->_write_impl = _pg_surface_iterator_write_generic;       
+    }
+
+    return true;
+}
+
+bool
 pg_surface_iterator_create(SDL_Surface *surface,
                            pg_surface_iterator_context *context)
 {
@@ -522,7 +534,7 @@ void
 pg_surface_iterator_read(pg_surface_iterator_context *context)
 {
     if (!context->done) {
-        _pg_surface_iterator_read_24(context);
+        (*(void * (*)(pg_surface_iterator_context *))context->_read_impl)(context);
     }
 }
 
@@ -530,6 +542,6 @@ void
 pg_surface_iterator_write(pg_surface_iterator_context *context)
 {
     if (!context->done) {
-        _pg_surface_iterator_write_24(context);
+        (*(void * (*)(pg_surface_iterator_context *))context->_write_impl)(context);
     }
 }
