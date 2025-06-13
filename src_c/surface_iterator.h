@@ -192,19 +192,19 @@ _pg_surface_iterator_read_generic(pg_surface_iterator_context *context)
                 context->_px_ptr += 12;
                 break;
             default: /* case 4 */
-                PG_GetRGBA(*((uint32_t *)context->_px_ptr[0]), context->_pxfmt,
+                PG_GetRGBA(*((uint32_t *)context->_px_ptr + 0), context->_pxfmt,
                            context->_palette, &(context->pixels.p1.r),
                            &(context->pixels.p1.g), &(context->pixels.p1.b),
                            &(context->pixels.p1.a));
-                PG_GetRGBA(*((uint32_t *)context->_px_ptr[4]), context->_pxfmt,
+                PG_GetRGBA(*((uint32_t *)context->_px_ptr + 1), context->_pxfmt,
                            context->_palette, &(context->pixels.p2.r),
                            &(context->pixels.p2.g), &(context->pixels.p2.b),
                            &(context->pixels.p2.a));
-                PG_GetRGBA(*((uint32_t *)context->_px_ptr[8]), context->_pxfmt,
+                PG_GetRGBA(*((uint32_t *)context->_px_ptr + 2), context->_pxfmt,
                            context->_palette, &(context->pixels.p3.r),
                            &(context->pixels.p3.g), &(context->pixels.p3.b),
                            &(context->pixels.p3.a));
-                PG_GetRGBA(*((uint32_t *)context->_px_ptr[12]),
+                PG_GetRGBA(*((uint32_t *)context->_px_ptr + 3),
                            context->_pxfmt, context->_palette,
                            &(context->pixels.p4.r), &(context->pixels.p4.g),
                            &(context->pixels.p4.b), &(context->pixels.p4.a));
@@ -256,7 +256,7 @@ _pg_surface_iterator_read_generic(pg_surface_iterator_context *context)
                 context->_px_ptr += 3;
                 break;
             default: /* case 4 */
-                PG_GetRGBA(*((uint32_t *)context->_px_ptr[0]), context->_pxfmt,
+                PG_GetRGBA(*((uint32_t *)context->_px_ptr + 0), context->_pxfmt,
                            context->_palette, &(context->arr_pixels.arr[i].r),
                            &(context->arr_pixels.arr[i].g),
                            &(context->arr_pixels.arr[i].b),
@@ -413,19 +413,19 @@ _pg_surface_iterator_write_generic(pg_surface_iterator_context *context)
                 context->_px_ptr += 12;
                 break;
             default: /* case 4 */
-                *(uint32_t *)context->_px_ptr[0] =
+                *((uint32_t *)context->_px_ptr + 0) =
                     PG_MapRGBA(context->_pxfmt, context->_palette,
                                context->pixels.p1.r, context->pixels.p1.g,
                                context->pixels.p1.b, context->pixels.p1.a);
-                *(uint32_t *)context->_px_ptr[4] =
+                *((uint32_t *)context->_px_ptr + 1) =
                     PG_MapRGBA(context->_pxfmt, context->_palette,
                                context->pixels.p2.r, context->pixels.p2.g,
                                context->pixels.p2.b, context->pixels.p2.a);
-                *(uint32_t *)context->_px_ptr[8] =
+                *((uint32_t *)context->_px_ptr + 2) =
                     PG_MapRGBA(context->_pxfmt, context->_palette,
                                context->pixels.p3.r, context->pixels.p3.g,
                                context->pixels.p3.b, context->pixels.p3.a);
-                *(uint32_t *)context->_px_ptr[12] =
+                *((uint32_t *)context->_px_ptr + 3) =
                     PG_MapRGBA(context->_pxfmt, context->_palette,
                                context->pixels.p4.r, context->pixels.p4.g,
                                context->pixels.p4.b, context->pixels.p4.a);
@@ -469,7 +469,7 @@ _pg_surface_iterator_write_generic(pg_surface_iterator_context *context)
                 context->_px_ptr += 3;
                 break;
             default: /* case 4 */
-                *(uint32_t *)context->_px_ptr[0] = PG_MapRGBA(
+                *((uint32_t *)context->_px_ptr + 0) = PG_MapRGBA(
                     context->_pxfmt, context->_palette,
                     context->arr_pixels.arr[i].r, context->arr_pixels.arr[i].g,
                     context->arr_pixels.arr[i].b,

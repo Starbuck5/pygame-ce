@@ -2241,39 +2241,6 @@ clamp_4
 
 #endif
 
-void
-grayscale_non_simd_old(SDL_Surface *src, PG_PixelFormat *src_format,
-                       SDL_Surface *newsurf, PG_PixelFormat *newsurf_format)
-{
-    SDL_Palette *src_palette = PG_GetSurfacePalette(src);
-    SDL_Palette *newsurf_palette = PG_GetSurfacePalette(newsurf);
-
-    for (int y = 0; y < src->h; y++) {
-        for (int x = 0; x < src->w; x++) {
-            Uint32 pixel;
-            Uint8 *pix;
-            SURF_GET_AT(pixel, src, x, y, (Uint8 *)src->pixels, src_format,
-                        pix);
-            Uint8 r, g, b, a;
-            PG_GetRGBA(pixel, src_format, src_palette, &r, &g, &b, &a);
-
-            /* RGBA to GRAY formula used by OpenCV
-             * We are using a bitshift and integer addition to align the
-             * calculation with what is fastest for SIMD operations.
-             * Results are almost identical to floating point multiplication.
-             */
-            Uint8 grayscale_pixel =
-                (Uint8)((((76 * r) + 255) >> 8) + (((150 * g) + 255) >> 8) +
-                        (((29 * b) + 255) >> 8));
-            Uint32 new_pixel =
-                PG_MapRGBA(newsurf_format, newsurf_palette, grayscale_pixel,
-                           grayscale_pixel, grayscale_pixel, a);
-            SURF_SET_AT(new_pixel, newsurf, x, y, (Uint8 *)newsurf->pixels,
-                        newsurf_format, pix);
-        }
-    }
-}
-
 #include "surface_iterator.h"
 
 void
