@@ -2242,8 +2242,8 @@ clamp_4
 #endif
 
 void
-grayscale_non_simd(SDL_Surface *src, PG_PixelFormat *src_format,
-                   SDL_Surface *newsurf, PG_PixelFormat *newsurf_format)
+grayscale_non_simd_old(SDL_Surface *src, PG_PixelFormat *src_format,
+                       SDL_Surface *newsurf, PG_PixelFormat *newsurf_format)
 {
     SDL_Palette *src_palette = PG_GetSurfacePalette(src);
     SDL_Palette *newsurf_palette = PG_GetSurfacePalette(newsurf);
@@ -2272,6 +2272,73 @@ grayscale_non_simd(SDL_Surface *src, PG_PixelFormat *src_format,
                         newsurf_format, pix);
         }
     }
+}
+
+#include "surface_iterator.h"
+
+void
+grayscale_non_simd(SDL_Surface *src, PG_PixelFormat *src_format,
+                   SDL_Surface *newsurf, PG_PixelFormat *newsurf_format)
+{
+    //printf("inside grayscale non simd\n");
+
+    pg_surface_iterator_context src_context, newsurf_context;
+
+    if (!pg_surface_iterator_create(src, &src_context) ||
+        !pg_surface_iterator_create(newsurf, &newsurf_context)) {
+        printf("AHGGHAGH\n");
+    }
+
+    int counter = 0;
+
+    while (!src_context.done) {
+        pg_surface_iterator_read(&src_context);
+        counter++;
+
+        /* RGBA to GRAY formula used by OpenCV
+            * We are using a bitshift and integer addition to align the
+            * calculation with what is fastest for SIMD operations.
+            * Results are almost identical to floating point multiplication.
+            */
+
+        Uint8 p1_gray =
+            (Uint8)((((76 * src_context.pixels.p1.r) + 255) >> 8) +
+                    (((150 * src_context.pixels.p1.g) + 255) >> 8) +
+                    (((29 * src_context.pixels.p1.b) + 255) >> 8));
+        newsurf_context.pixels.p1.r = p1_gray;
+        newsurf_context.pixels.p1.g = p1_gray;
+        newsurf_context.pixels.p1.b = p1_gray;
+        newsurf_context.pixels.p1.a = src_context.pixels.p1.a;
+        Uint8 p2_gray =
+            (Uint8)((((76 * src_context.pixels.p2.r) + 255) >> 8) +
+                    (((150 * src_context.pixels.p2.g) + 255) >> 8) +
+                    (((29 * src_context.pixels.p2.b) + 255) >> 8));
+        newsurf_context.pixels.p2.r = p2_gray;
+        newsurf_context.pixels.p2.g = p2_gray;
+        newsurf_context.pixels.p2.b = p2_gray;
+        newsurf_context.pixels.p2.a = src_context.pixels.p2.a;
+        Uint8 p3_gray =
+            (Uint8)((((76 * src_context.pixels.p3.r) + 255) >> 8) +
+                    (((150 * src_context.pixels.p3.g) + 255) >> 8) +
+                    (((29 * src_context.pixels.p3.b) + 255) >> 8));
+        newsurf_context.pixels.p3.r = p3_gray;
+        newsurf_context.pixels.p3.g = p3_gray;
+        newsurf_context.pixels.p3.b = p3_gray;
+        newsurf_context.pixels.p3.a = src_context.pixels.p3.a;
+        Uint8 p4_gray =
+            (Uint8)((((76 * src_context.pixels.p4.r) + 255) >> 8) +
+                    (((150 * src_context.pixels.p4.g) + 255) >> 8) +
+                    (((29 * src_context.pixels.p4.b) + 255) >> 8));
+        newsurf_context.pixels.p4.r = p4_gray;
+        newsurf_context.pixels.p4.g = p4_gray;
+        newsurf_context.pixels.p4.b = p4_gray;
+        newsurf_context.pixels.p4.a = src_context.pixels.p4.a;
+
+        pg_surface_iterator_write(&newsurf_context);
+    }
+
+    //printf("%d\n", newsurf_context.done);
+    //printf("%d\n", counter);
 }
 
 SDL_Surface *
