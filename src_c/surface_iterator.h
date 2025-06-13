@@ -127,22 +127,22 @@ _pg_surface_iterator_read_generic(pg_surface_iterator_context *context)
                            &(context->pixels.p4.a));
                 break;
             case 2:
-                PG_GetRGBA(*((uint16_t *)context->_px_ptr[0]), context->_pxfmt,
-                           context->_palette, &(context->pixels.p1.r),
-                           &(context->pixels.p1.g), &(context->pixels.p1.b),
-                           &(context->pixels.p1.a));
-                PG_GetRGBA(*((uint16_t *)context->_px_ptr[2]), context->_pxfmt,
-                           context->_palette, &(context->pixels.p2.r),
-                           &(context->pixels.p2.g), &(context->pixels.p2.b),
-                           &(context->pixels.p2.a));
-                PG_GetRGBA(*((uint16_t *)context->_px_ptr[4]), context->_pxfmt,
-                           context->_palette, &(context->pixels.p3.r),
-                           &(context->pixels.p3.g), &(context->pixels.p3.b),
-                           &(context->pixels.p3.a));
-                PG_GetRGBA(*((uint16_t *)context->_px_ptr[6]), context->_pxfmt,
-                           context->_palette, &(context->pixels.p4.r),
-                           &(context->pixels.p4.g), &(context->pixels.p4.b),
-                           &(context->pixels.p4.a));
+                PG_GetRGBA(*((uint16_t *)context->_px_ptr + 0),
+                           context->_pxfmt, context->_palette,
+                           &(context->pixels.p1.r), &(context->pixels.p1.g),
+                           &(context->pixels.p1.b), &(context->pixels.p1.a));
+                PG_GetRGBA(*((uint16_t *)context->_px_ptr + 1),
+                           context->_pxfmt, context->_palette,
+                           &(context->pixels.p2.r), &(context->pixels.p2.g),
+                           &(context->pixels.p2.b), &(context->pixels.p2.a));
+                PG_GetRGBA(*((uint16_t *)context->_px_ptr + 2),
+                           context->_pxfmt, context->_palette,
+                           &(context->pixels.p3.r), &(context->pixels.p3.g),
+                           &(context->pixels.p3.b), &(context->pixels.p3.a));
+                PG_GetRGBA(*((uint16_t *)context->_px_ptr + 3),
+                           context->_pxfmt, context->_palette,
+                           &(context->pixels.p4.r), &(context->pixels.p4.g),
+                           &(context->pixels.p4.b), &(context->pixels.p4.a));
                 context->_px_ptr += 8;
                 break;
             case 3:
@@ -227,8 +227,9 @@ _pg_surface_iterator_read_generic(pg_surface_iterator_context *context)
                            &(context->arr_pixels.arr[i].a));
                 break;
             case 2:
-                PG_GetRGBA(*((uint16_t *)context->_px_ptr[0]), context->_pxfmt,
-                           context->_palette, &(context->arr_pixels.arr[i].r),
+                PG_GetRGBA(*((uint16_t *)context->_px_ptr + 0),
+                           context->_pxfmt, context->_palette,
+                           &(context->arr_pixels.arr[i].r),
                            &(context->arr_pixels.arr[i].g),
                            &(context->arr_pixels.arr[i].b),
                            &(context->arr_pixels.arr[i].a));
@@ -364,19 +365,19 @@ _pg_surface_iterator_write_generic(pg_surface_iterator_context *context)
                 context->_px_ptr += 4;
                 break;
             case 2:
-                *(uint16_t *)context->_px_ptr[0] = (uint16_t)PG_MapRGBA(
+                *((uint16_t *)context->_px_ptr + 0) = (uint16_t)PG_MapRGBA(
                     context->_pxfmt, context->_palette, context->pixels.p1.r,
                     context->pixels.p1.g, context->pixels.p1.b,
                     context->pixels.p1.a);
-                *(uint16_t *)context->_px_ptr[2] = (uint16_t)PG_MapRGBA(
+                *((uint16_t *)context->_px_ptr + 1) = (uint16_t)PG_MapRGBA(
                     context->_pxfmt, context->_palette, context->pixels.p2.r,
                     context->pixels.p2.g, context->pixels.p2.b,
                     context->pixels.p2.a);
-                *(uint16_t *)context->_px_ptr[4] = (uint16_t)PG_MapRGBA(
+                *((uint16_t *)context->_px_ptr + 2) = (uint16_t)PG_MapRGBA(
                     context->_pxfmt, context->_palette, context->pixels.p3.r,
                     context->pixels.p3.g, context->pixels.p3.b,
                     context->pixels.p3.a);
-                *(uint16_t *)context->_px_ptr[6] = (uint16_t)PG_MapRGBA(
+                *((uint16_t *)context->_px_ptr + 3) = (uint16_t)PG_MapRGBA(
                     context->_pxfmt, context->_palette, context->pixels.p4.r,
                     context->pixels.p4.g, context->pixels.p4.b,
                     context->pixels.p4.a);
@@ -448,7 +449,7 @@ _pg_surface_iterator_write_generic(pg_surface_iterator_context *context)
                 context->_px_ptr += 1;
                 break;
             case 2:
-                *(uint16_t *)context->_px_ptr[0] = (uint16_t)PG_MapRGBA(
+                *((uint16_t *)context->_px_ptr + 0) = (uint16_t)PG_MapRGBA(
                     context->_pxfmt, context->_palette,
                     context->arr_pixels.arr[i].r, context->arr_pixels.arr[i].g,
                     context->arr_pixels.arr[i].b,
@@ -516,7 +517,7 @@ _pg_surface_iterator_create_generic(SDL_Surface *surface,
     }
     else {
         context->_read_impl = _pg_surface_iterator_read_generic;
-        context->_write_impl = _pg_surface_iterator_write_generic;       
+        context->_write_impl = _pg_surface_iterator_write_generic;
     }
 
     return true;
@@ -534,7 +535,8 @@ void
 pg_surface_iterator_read(pg_surface_iterator_context *context)
 {
     if (!context->done) {
-        (*(void * (*)(pg_surface_iterator_context *))context->_read_impl)(context);
+        (*(void *(*)(pg_surface_iterator_context *))context->_read_impl)(
+            context);
     }
 }
 
@@ -542,6 +544,7 @@ void
 pg_surface_iterator_write(pg_surface_iterator_context *context)
 {
     if (!context->done) {
-        (*(void * (*)(pg_surface_iterator_context *))context->_write_impl)(context);
+        (*(void *(*)(pg_surface_iterator_context *))context->_write_impl)(
+            context);
     }
 }
