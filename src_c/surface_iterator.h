@@ -158,6 +158,32 @@ _pg_surface_iterator_read_32(pg_surface_iterator_context *context)
 }
 
 void
+_pg_surface_iterator_read_index8(pg_surface_iterator_context *context)
+{
+    if (context->_remaining_width_batches != 0) {
+        context->pixels.p1 = context->_palette->colors[*(context->_px_ptr++)];
+        context->pixels.p2 = context->_palette->colors[*(context->_px_ptr++)];
+        context->pixels.p3 = context->_palette->colors[*(context->_px_ptr++)];
+        context->pixels.p4 = context->_palette->colors[*(context->_px_ptr++)];
+        context->_remaining_width_batches--;
+        return;
+    }
+
+    // If no remaining batches of 4, process any remaining and prepare for next
+    // row
+    for (int i = 0; i < context->_surf_w_num_post4; i++) {
+        context->arr_pixels.arr[i] = context->_palette->colors[*(context->_px_ptr++)];
+    }
+    context->_px_ptr += context->_surf_w_post_skip;
+    context->_remaining_rows--;
+    context->_remaining_width_batches = context->_surf_w_num_batches4;
+
+    if (context->_remaining_rows < 0) {
+        context->done = true;
+    }
+}
+
+void
 _pg_surface_iterator_read_generic(pg_surface_iterator_context *context)
 {
     if (context->_remaining_width_batches != 0) {
@@ -632,6 +658,10 @@ _pg_surface_iterator_create_generic(SDL_Surface *surface,
     else if (surf_bits == 32) {
         context->_read_impl = _pg_surface_iterator_read_32;
         context->_write_impl = _pg_surface_iterator_write_32;
+    }
+    else if (PG_SURF_FORMATENUM(surface) == SDL_PIXELFORMAT_INDEX8) {
+        context->_read_impl = _pg_surface_iterator_read_index8;
+        context->_write_impl = _pg_surface_iterator_write_generic;        
     }
     else {
         context->_read_impl = _pg_surface_iterator_read_generic;
