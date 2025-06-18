@@ -2,7 +2,6 @@
 python_sources = files(
     '__init__.py',
     '_camera_opencv.py',
-    '_data_classes.py',
     '_debug.py',
     '_sprite.py',
     'camera.py',
@@ -18,6 +17,7 @@ python_sources = files(
     'sprite.py',
     'surfarray.py',
     'sysfont.py',
+    'system.py',
     'typing.py',
     'version.py',
 )

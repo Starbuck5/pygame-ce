@@ -5,8 +5,6 @@
 
 from typing import Optional, TypedDict
 
-from pygame._data_classes import PowerState
-
 class _InstructionSets(TypedDict):
     ALTIVEC: bool
     MMX: bool
@@ -144,6 +142,7 @@ def get_pref_locales() -> list[_Locale]:
     .. versionadded:: 2.2.0
     """
 
+# Todo deal with powerstate here
 def get_power_state() -> Optional[PowerState]:
     """Get the current power supply state.
 

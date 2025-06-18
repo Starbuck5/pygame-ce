@@ -1,5 +1,12 @@
 # first the "required" modules
 
+system = static_library(
+    'system',
+    'system.c',
+    dependencies: pg_base_deps,
+    c_args: warnings_error,
+)
+
 base = py.extension_module(
     'base',
     'base.c',
@@ -7,6 +14,7 @@ base = py.extension_module(
     dependencies: pg_base_deps,
     install: true,
     subdir: pg,
+    link_with: [system]
 )
 
 color = py.extension_module(
@@ -275,15 +283,6 @@ newbuffer = py.extension_module(
 )
 
 # new/experimental/uncommon stuff, but built by default
-system = py.extension_module(
-    'system',
-    'system.c',
-    c_args: warnings_error,
-    dependencies: pg_base_deps,
-    install: true,
-    subdir: pg,
-)
-
 geometry = py.extension_module(
     'geometry',
     'geometry.c',

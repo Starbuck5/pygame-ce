@@ -24,6 +24,8 @@
 
 #include "pygame.h"
 
+#include "system.h"
+
 #include <signal.h>
 #include "doc/pygame_doc.h"
 #include "pgarrinter.h"
@@ -2495,6 +2497,10 @@ MODINIT_DEFINE(base)
 #ifdef MS_WIN32
     SDL_RegisterApp("pygame", 0, GetModuleHandle(NULL));
 #endif
+
+    if (!pygame_exec_subsystem_vmodule(module)) {
+        goto error;
+    }
 
     return module;
 

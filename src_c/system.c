@@ -1,6 +1,4 @@
-#include "pygame.h"
-
-#include "pgcompat.h"
+#include "system.h"
 
 #include "doc/system_doc.h"
 
@@ -181,14 +179,11 @@ error:
     return NULL;
 }
 
-static PyObject *PowerState_class = NULL;
-
 static PyObject *
 pg_system_get_power_state(PyObject *self, PyObject *_null)
 {
     int sec, pct;
     SDL_PowerState power_state;
-    PyObject *return_args;
     PyObject *return_kwargs;
     PyObject *sec_py, *pct_py;
 
@@ -234,79 +229,24 @@ pg_system_get_power_state(PyObject *self, PyObject *_null)
     );
     // clang-format on
 
-    if (!return_kwargs) {
-        return NULL;
-    }
-
-    return_args = Py_BuildValue("()");
-
-    if (!return_args) {
-        return NULL;
-    }
-
-    if (!PowerState_class) {
-        return RAISE(PyExc_SystemError, "PowerState class is not imported.");
-    }
-
-    return PyObject_Call(PowerState_class, return_args, return_kwargs);
+    return return_kwargs;
 }
 
 static PyMethodDef _system_methods[] = {
-    {"get_cpu_instruction_sets", pg_system_get_cpu_instruction_sets,
+    {"_system_get_cpu_instruction_sets", pg_system_get_cpu_instruction_sets,
      METH_NOARGS, DOC_SYSTEM_GETCPUINSTRUCTIONSETS},
-    {"get_total_ram", pg_system_get_total_ram, METH_NOARGS,
+    {"_system_get_total_ram", pg_system_get_total_ram, METH_NOARGS,
      DOC_SYSTEM_GETTOTALRAM},
-    {"get_pref_path", (PyCFunction)pg_system_get_pref_path,
+    {"_system_get_pref_path", (PyCFunction)pg_system_get_pref_path,
      METH_VARARGS | METH_KEYWORDS, DOC_SYSTEM_GETPREFPATH},
-    {"get_pref_locales", pg_system_get_pref_locales, METH_NOARGS,
+    {"_system_get_pref_locales", pg_system_get_pref_locales, METH_NOARGS,
      DOC_SYSTEM_GETPREFLOCALES},
-    {"get_power_state", pg_system_get_power_state, METH_NOARGS,
+    {"_system_get_power_state", pg_system_get_power_state, METH_NOARGS,
      DOC_SYSTEM_GETPOWERSTATE},
     {NULL, NULL, 0, NULL}};
 
-MODINIT_DEFINE(system)
+bool
+pygame_exec_subsystem_vmodule(PyObject *base_module)
 {
-    PyObject *module;
-    static struct PyModuleDef _module = {
-        .m_base = PyModuleDef_HEAD_INIT,
-        .m_name = "system",
-        .m_doc = DOC_SYSTEM,
-        .m_size = -1,
-        .m_methods = _system_methods,
-    };
-
-    /* need to import base module, just so SDL is happy. Do this first so if
-       the module is there is an error the module is not loaded.
-    */
-    import_pygame_base();
-    if (PyErr_Occurred()) {
-        return NULL;
-    }
-
-    PyObject *data_classes_module =
-        PyImport_ImportModule("pygame._data_classes");
-    if (!data_classes_module) {
-        return NULL;
-    }
-
-    PowerState_class =
-        PyObject_GetAttrString(data_classes_module, "PowerState");
-    if (!PowerState_class) {
-        return NULL;
-    }
-    Py_DECREF(data_classes_module);
-
-    /* create the module */
-    module = PyModule_Create(&_module);
-    if (!module) {
-        return NULL;
-    }
-
-    if (PyModule_AddObject(module, "PowerState", PowerState_class)) {
-        Py_DECREF(PowerState_class);
-        Py_DECREF(module);
-        return NULL;
-    }
-
-    return module;
+    return PyModule_AddFunctions(base_module, _system_methods) != -1;
 }
