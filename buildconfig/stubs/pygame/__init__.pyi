@@ -10,7 +10,8 @@ from . import (
     font as font,
     image as image,
     key as key,
-    mixer as mixer,
+    _mixer as mixer,
+    audio as audio,
     mouse as mouse,
     time as time,
     cursors as cursors,
@@ -28,7 +29,7 @@ from . import (
     bufferproxy as bufferproxy,
     color as color,
     colordict as colordict,
-    mixer_music as mixer_music,
+    #mixer_music as mixer_music,
     pixelarray as pixelarray,
     rect as rect,
     rwobject as rwobject,
@@ -53,7 +54,8 @@ from .mask import Mask as Mask
 from ._debug import print_debug_info as print_debug_info
 from .event import Event as Event
 from .font import Font as Font
-from .mixer import Sound as Sound, Channel as Channel
+from ._mixer import Track as Track, Audio as Audio, Mixer as Mixer
+from .audio import AudioSpec as AudioSpec, AudioStream as AudioStream
 from .time import Clock as Clock
 from .joystick import Joystick as Joystick
 from .window import Window as Window
