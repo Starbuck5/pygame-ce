@@ -29,7 +29,7 @@ from . import (
     bufferproxy as bufferproxy,
     color as color,
     colordict as colordict,
-    #mixer_music as mixer_music,
+    # mixer_music as mixer_music,
     pixelarray as pixelarray,
     rect as rect,
     rwobject as rwobject,

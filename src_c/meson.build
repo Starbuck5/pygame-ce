@@ -421,9 +421,10 @@ if sdl_ttf_dep.found()
 endif
 
 # TODO: support SDL3
-if sdl_api != 3
+
 
 if sdl_mixer_dep.found()
+if sdl_api != 3
     mixer = py.extension_module(
         'mixer',
         'mixer.c',
@@ -441,8 +442,16 @@ if sdl_mixer_dep.found()
         install: true,
         subdir: pg,
     )
+else
+    _mixer = py.extension_module(
+        '_mixer',
+        '_mixer.c',
+        c_args: warnings_error,
+        dependencies: pg_base_deps + sdl_mixer_dep,
+        install: true,
+        subdir: pg,
+    )
 endif
-
 endif
 
 if freetype_dep.found()
