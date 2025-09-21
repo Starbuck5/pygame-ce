@@ -8,7 +8,6 @@
 
 typedef struct {
     bool mixer_initialized;
-    PyObject *mixer_type;
 } _mixer_state;
 
 #define GET_STATE(x) (_mixer_state *)PyModule_GetState(x)
@@ -26,9 +25,16 @@ typedef struct {
 // ***************************************************************************
 
 static PyObject *
-pg_mixer_print(PGMixerObject *self, PyObject *_null)
+pg_mixer_obj_play(PGMixerObject* self, PyObject *arg)
 {
-    printf("I'm here bro\n");
+    if (!PyObject_IsInstance(arg, PyObject_GetAttrString((PyObject *)self, "_audio_type"))) {
+        return RAISE(PyExc_TypeError, "audio must be an Audio");
+    }
+
+    PGAudioObject* audio = (PGAudioObject*)arg;
+    if(!MIX_PlayAudio(self->mixer, audio->audio)) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
     Py_RETURN_NONE;
 }
 
@@ -48,7 +54,7 @@ pg_mixer_obj_init(PGMixerObject *self, PyObject *args, PyObject *kwargs)
 }
 
 static PyMethodDef mixer_methods[] = {
-    {"print", (PyCFunction)pg_mixer_print, METH_NOARGS, "TODO"},
+    {"play_audio", (PyCFunction)pg_mixer_obj_play, METH_O, "TODO"},
     {NULL, NULL, 0, NULL}};
 
 static PyObject *
@@ -217,9 +223,10 @@ exec_mixer(PyObject *module)
         return -1;
     }
 
+    PyObject_SetAttrString(mixer_type, "_audio_type", audio_type);
+
     _mixer_state *state = GET_STATE(module);
     state->mixer_initialized = false;
-    state->mixer_type = mixer_type;
 
     return 0;
 }
