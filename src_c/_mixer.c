@@ -20,6 +20,11 @@ typedef struct {
     PyObject_HEAD MIX_Audio *audio;
 } PGAudioObject;
 
+typedef struct {
+    PyObject_HEAD MIX_Track *track;
+    PyObject *mixer_obj;
+} PGTrackObject;
+
 // ***************************************************************************
 // MIXER.MIXER CLASS
 // ***************************************************************************
@@ -152,7 +157,11 @@ pg_mixer_obj_resume_all_tracks(PGMixerObject *self, PyObject *_null)
 static int
 pg_mixer_obj_init(PGMixerObject *self, PyObject *args, PyObject *kwargs)
 {
-    printf("self_mp=%p\n", self->mixer);
+    // Each time a MixerDevice-created Mixer is destroyed, SDL_Mixer calls
+    // SDL_QuitSubSystem(SDL_INIT_AUDIO). So we must init here to keep
+    // the init state even through the object life cycle. Init/quit is
+    // refcounted by SDL.
+    SDL_InitSubSystem(SDL_INIT_AUDIO);
 
     self->mixer =
         MIX_CreateMixerDevice(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, NULL);
@@ -162,6 +171,13 @@ pg_mixer_obj_init(PGMixerObject *self, PyObject *args, PyObject *kwargs)
     }
 
     return 0;
+}
+
+static void
+pg_mixer_obj_dealloc(PGMixerObject *self)
+{
+    MIX_DestroyMixer(self->mixer);
+    self->mixer = NULL;
 }
 
 static PyMethodDef mixer_methods[] = {
@@ -210,6 +226,7 @@ static PyGetSetDef mixer_obj_getsets[] = {
 static PyType_Slot mixer_slots[] = {{Py_tp_methods, mixer_methods},
                                     {Py_tp_init, pg_mixer_obj_init},
                                     {Py_tp_getset, mixer_obj_getsets},
+                                    {Py_tp_dealloc, pg_mixer_obj_dealloc},
                                     {0, NULL}};
 
 static PyType_Spec mixer_spec = {.name = "Mixer",
@@ -230,7 +247,8 @@ pg_audio_obj_init(PGAudioObject *self, PyObject *args, PyObject *kwargs)
 
     char *keywords[] = {"file", "predecode", NULL};
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|pO!", keywords, &file,
+    // TODO: preferred_mixer
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|p", keywords, &file,
                                      &predecode)) {
         return -1;
     }
@@ -246,9 +264,14 @@ pg_audio_obj_init(PGAudioObject *self, PyObject *args, PyObject *kwargs)
         return -1;
     }
 
-    printf("file=%p, predecode=%i\n", file, predecode);
-
     return 0;
+}
+
+static void
+pg_audio_obj_dealloc(PGAudioObject *self)
+{
+    MIX_DestroyAudio(self->audio);
+    self->audio = NULL;
 }
 
 static PyObject *
@@ -338,6 +361,7 @@ static PyMethodDef audio_obj_methods[] = {
 static PyType_Slot audio_slots[] = {{Py_tp_init, pg_audio_obj_init},
                                     {Py_tp_getset, audio_obj_getsets},
                                     {Py_tp_methods, audio_obj_methods},
+                                    {Py_tp_dealloc, pg_audio_obj_dealloc},
                                     {0, NULL}};
 
 static PyType_Spec audio_spec = {.name = "Audio",
@@ -345,6 +369,82 @@ static PyType_Spec audio_spec = {.name = "Audio",
                                  .itemsize = 0,
                                  .flags = 0,
                                  .slots = audio_slots};
+
+// ***************************************************************************
+// MIXER.TRACK CLASS
+// ***************************************************************************
+
+static int
+pg_track_obj_init(PGTrackObject *self, PyObject *args, PyObject *kwargs)
+{
+    PGMixerObject *mixer = NULL;
+    char *keywords[] = {"mixer", NULL};
+    PyObject *mixer_type =
+        PyObject_GetAttrString((PyObject *)self, "_mixer_type");
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O!", keywords, mixer_type,
+                                     &mixer)) {
+        return -1;
+    }
+
+    self->track = MIX_CreateTrack(mixer->mixer);
+    if (self->track == NULL) {
+        PyErr_SetString(pgExc_SDLError, SDL_GetError());
+        return -1;
+    }
+
+    // Mixers own Tracks. When the Mixer is deallocated, the tracks become
+    // invalid. So we need to hold a reference to prevent Mixer deallocating
+    // before any of the Tracks it owns.
+    Py_INCREF(mixer);
+    self->mixer_obj = (PyObject *)mixer;
+
+    return 0;
+}
+
+static void
+pg_track_obj_dealloc(PGTrackObject *self)
+{
+    MIX_DestroyTrack(self->track);
+    self->track = NULL;
+    Py_XDECREF(self->mixer_obj);
+    self->mixer_obj = NULL;
+}
+
+PyObject *
+pg_track_obj_playing(PGTrackObject *self, PyObject *_null)
+{
+    return PyBool_FromLong(MIX_TrackPlaying(self->track));
+}
+
+PyObject *
+pg_track_obj_paused(PGTrackObject *self, PyObject *_null)
+{
+    return PyBool_FromLong(MIX_TrackPaused(self->track));
+}
+
+PyObject *
+pg_track_obj_looping(PGTrackObject *self, PyObject *_null)
+{
+    return PyBool_FromLong(MIX_TrackLooping(self->track));
+}
+
+static PyGetSetDef track_obj_getsets[] = {
+    {"playing", (getter)pg_track_obj_playing, NULL, "TODO", NULL},
+    {"paused", (getter)pg_track_obj_paused, NULL, "TODO", NULL},
+    {"looping", (getter)pg_track_obj_looping, NULL, "TODO", NULL},
+    {NULL, NULL, NULL, NULL, NULL}};
+
+static PyType_Slot track_slots[] = {{Py_tp_init, pg_track_obj_init},
+                                    {Py_tp_dealloc, pg_track_obj_dealloc},
+                                    {Py_tp_getset, track_obj_getsets},
+                                    {0, NULL}};
+
+static PyType_Spec track_spec = {.name = "Track",
+                                 .basicsize = sizeof(PGTrackObject),
+                                 .itemsize = 0,
+                                 .flags = 0,
+                                 .slots = track_slots};
 
 // ***************************************************************************
 // MODULE METHODS
@@ -434,7 +534,13 @@ exec_mixer(PyObject *module)
         return -1;
     }
 
+    PyObject *track_type = PyType_FromModuleAndSpec(module, &track_spec, NULL);
+    if (PyModule_AddObjectRef(module, "Track", track_type) < 0) {
+        return -1;
+    }
+
     PyObject_SetAttrString(mixer_type, "_audio_type", audio_type);
+    PyObject_SetAttrString(track_type, "_mixer_type", mixer_type);
 
     _mixer_state *state = GET_STATE(module);
     state->mixer_initialized = false;
@@ -456,7 +562,7 @@ MODINIT_DEFINE(_mixer)
 #endif
         {0, NULL}};
     static struct PyModuleDef _module = {PyModuleDef_HEAD_INIT,
-                                         "surface",
+                                         "_mixer",
                                          "DOC TODO",
                                          sizeof(_mixer_state),
                                          _mixer_methods,
