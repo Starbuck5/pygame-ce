@@ -174,7 +174,6 @@ static PyMethodDef mixer_methods[] = {
      METH_VARARGS | METH_KEYWORDS, "TODO"},
     {"set_tag_gain", (PyCFunction)pg_mixer_obj_set_tag_gain,
      METH_VARARGS | METH_KEYWORDS, "TODO"},
-
     {"stop_all_tracks", (PyCFunction)pg_mixer_obj_stop_all_tracks,
      METH_VARARGS | METH_KEYWORDS, "TODO"},
     {"pause_all_tracks", (PyCFunction)pg_mixer_obj_pause_all_tracks,
@@ -252,7 +251,93 @@ pg_audio_obj_init(PGAudioObject *self, PyObject *args, PyObject *kwargs)
     return 0;
 }
 
+static PyObject *
+pg_audio_obj_get_duration_frames(PGAudioObject *self, void *_null)
+{
+    int64_t duration_frames = MIX_GetAudioDuration(self->audio);
+    if (duration_frames < 0) {
+        Py_RETURN_NONE;  // infinite / unknown
+    }
+    return PyLong_FromLongLong(duration_frames);
+}
+
+static PyObject *
+pg_audio_obj_get_duration_ms(PGAudioObject *self, void *_null)
+{
+    int64_t duration_frames = MIX_GetAudioDuration(self->audio);
+    if (duration_frames < 0) {
+        Py_RETURN_NONE;  // infinite / unknown
+    }
+    int64_t duration_ms = MIX_AudioFramesToMS(self->audio, duration_frames);
+    return PyLong_FromLongLong(duration_ms);
+}
+
+static PyObject *
+pg_audio_obj_get_duration_infinite(PGAudioObject *self, void *_null)
+{
+    int64_t duration_frames = MIX_GetAudioDuration(self->audio);
+    if (duration_frames == MIX_DURATION_INFINITE) {
+        Py_RETURN_TRUE;
+    }
+    Py_RETURN_FALSE;  // not infinite / unknown
+}
+
+static PyObject *
+pg_audio_obj_ms_to_frames(PGAudioObject *self, PyObject *args,
+                          PyObject *kwargs)
+{
+    int64_t ms;
+    char *keywords[] = {"ms", NULL};
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "L", keywords, &ms)) {
+        return NULL;
+    }
+
+    int64_t frames = MIX_AudioMSToFrames(self->audio, ms);
+    if (frames == -1 && ms >= 0) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    return PyLong_FromLongLong(frames);
+}
+
+static PyObject *
+pg_audio_obj_frames_to_ms(PGAudioObject *self, PyObject *args,
+                          PyObject *kwargs)
+{
+    int64_t frames;
+    char *keywords[] = {"frames", NULL};
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "L", keywords, &frames)) {
+        return NULL;
+    }
+
+    int64_t ms = MIX_AudioFramesToMS(self->audio, frames);
+    if (ms == -1 && frames >= 0) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    return PyLong_FromLongLong(ms);
+}
+
+static PyGetSetDef audio_obj_getsets[] = {
+    {"duration_frames", (getter)pg_audio_obj_get_duration_frames, NULL, "TODO",
+     NULL},
+    {"duration_ms", (getter)pg_audio_obj_get_duration_ms, NULL, "TODO", NULL},
+    {"duration_infinite", (getter)pg_audio_obj_get_duration_infinite, NULL,
+     "TODO", NULL},
+    {NULL, NULL, NULL, NULL, NULL}};
+
+static PyMethodDef audio_obj_methods[] = {
+    {"ms_to_frames", (PyCFunction)pg_audio_obj_ms_to_frames,
+     METH_VARARGS | METH_KEYWORDS, "TODO"},
+    {"frames_to_ms", (PyCFunction)pg_audio_obj_frames_to_ms,
+     METH_VARARGS | METH_KEYWORDS, "TODO"},
+    {NULL, NULL, 0, NULL}};
+
 static PyType_Slot audio_slots[] = {{Py_tp_init, pg_audio_obj_init},
+                                    {Py_tp_getset, audio_obj_getsets},
+                                    {Py_tp_methods, audio_obj_methods},
                                     {0, NULL}};
 
 static PyType_Spec audio_spec = {.name = "Audio",
