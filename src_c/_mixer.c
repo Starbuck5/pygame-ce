@@ -25,14 +25,125 @@ typedef struct {
 // ***************************************************************************
 
 static PyObject *
-pg_mixer_obj_play(PGMixerObject* self, PyObject *arg)
+pg_mixer_obj_play(PGMixerObject *self, PyObject *arg)
 {
-    if (!PyObject_IsInstance(arg, PyObject_GetAttrString((PyObject *)self, "_audio_type"))) {
+    if (!PyObject_IsInstance(
+            arg, PyObject_GetAttrString((PyObject *)self, "_audio_type"))) {
         return RAISE(PyExc_TypeError, "audio must be an Audio");
     }
 
-    PGAudioObject* audio = (PGAudioObject*)arg;
-    if(!MIX_PlayAudio(self->mixer, audio->audio)) {
+    PGAudioObject *audio = (PGAudioObject *)arg;
+    if (!MIX_PlayAudio(self->mixer, audio->audio)) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+pg_mixer_obj_stop_tag(PGMixerObject *self, PyObject *args, PyObject *kwargs)
+{
+    char *tag;
+    int64_t fade_out_ms = 0;
+    char *keywords[] = {"tag", "fade_out_ms", NULL};
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|L", keywords, &tag,
+                                     &fade_out_ms)) {
+        return NULL;
+    }
+
+    if (!MIX_StopTag(self->mixer, tag, fade_out_ms)) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+pg_mixer_obj_pause_tag(PGMixerObject *self, PyObject *args, PyObject *kwargs)
+{
+    char *tag;
+    char *keywords[] = {"tag", NULL};
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s", keywords, &tag)) {
+        return NULL;
+    }
+
+    if (!MIX_PauseTag(self->mixer, tag)) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+pg_mixer_obj_resume_tag(PGMixerObject *self, PyObject *args, PyObject *kwargs)
+{
+    char *tag;
+    char *keywords[] = {"tag", NULL};
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s", keywords, &tag)) {
+        return NULL;
+    }
+
+    if (!MIX_ResumeTag(self->mixer, tag)) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+pg_mixer_obj_set_tag_gain(PGMixerObject *self, PyObject *args,
+                          PyObject *kwargs)
+{
+    char *tag;
+    float gain;
+    char *keywords[] = {"tag", "gain", NULL};
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|L", keywords, &tag,
+                                     &gain)) {
+        return NULL;
+    }
+
+    if (!MIX_SetTagGain(self->mixer, tag, gain)) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+pg_mixer_obj_stop_all_tracks(PGMixerObject *self, PyObject *args,
+                             PyObject *kwargs)
+{
+    int64_t fade_out_ms = 0;
+    char *keywords[] = {"fade_out_ms", NULL};
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s", keywords,
+                                     &fade_out_ms)) {
+        return NULL;
+    }
+
+    if (!MIX_StopAllTracks(self->mixer, fade_out_ms)) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+pg_mixer_obj_pause_all_tracks(PGMixerObject *self, PyObject *_null)
+{
+    if (!MIX_PauseAllTracks(self->mixer)) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+pg_mixer_obj_resume_all_tracks(PGMixerObject *self, PyObject *_null)
+{
+    if (!MIX_ResumeAllTracks(self->mixer)) {
         return RAISE(pgExc_SDLError, SDL_GetError());
     }
     Py_RETURN_NONE;
@@ -55,6 +166,21 @@ pg_mixer_obj_init(PGMixerObject *self, PyObject *args, PyObject *kwargs)
 
 static PyMethodDef mixer_methods[] = {
     {"play_audio", (PyCFunction)pg_mixer_obj_play, METH_O, "TODO"},
+    {"stop_tag", (PyCFunction)pg_mixer_obj_stop_tag,
+     METH_VARARGS | METH_KEYWORDS, "TODO"},
+    {"pause_tag", (PyCFunction)pg_mixer_obj_pause_tag,
+     METH_VARARGS | METH_KEYWORDS, "TODO"},
+    {"resume_tag", (PyCFunction)pg_mixer_obj_resume_tag,
+     METH_VARARGS | METH_KEYWORDS, "TODO"},
+    {"set_tag_gain", (PyCFunction)pg_mixer_obj_set_tag_gain,
+     METH_VARARGS | METH_KEYWORDS, "TODO"},
+
+    {"stop_all_tracks", (PyCFunction)pg_mixer_obj_stop_all_tracks,
+     METH_VARARGS | METH_KEYWORDS, "TODO"},
+    {"pause_all_tracks", (PyCFunction)pg_mixer_obj_pause_all_tracks,
+     METH_NOARGS, "TODO"},
+    {"resume_all_tracks", (PyCFunction)pg_mixer_obj_resume_all_tracks,
+     METH_NOARGS, "TODO"},
     {NULL, NULL, 0, NULL}};
 
 static PyObject *
