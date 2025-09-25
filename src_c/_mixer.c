@@ -23,6 +23,7 @@ typedef struct {
 typedef struct {
     PyObject_HEAD MIX_Track *track;
     PyObject *mixer_obj;
+    PyObject *source_obj;
 } PGTrackObject;
 
 // ***************************************************************************
@@ -411,33 +412,152 @@ pg_track_obj_dealloc(PGTrackObject *self)
     self->mixer_obj = NULL;
 }
 
-PyObject *
-pg_track_obj_playing(PGTrackObject *self, PyObject *_null)
+static PyObject *
+pg_track_obj_get_playing(PGTrackObject *self, PyObject *_null)
 {
     return PyBool_FromLong(MIX_TrackPlaying(self->track));
 }
 
-PyObject *
-pg_track_obj_paused(PGTrackObject *self, PyObject *_null)
+static PyObject *
+pg_track_obj_get_paused(PGTrackObject *self, PyObject *_null)
 {
     return PyBool_FromLong(MIX_TrackPaused(self->track));
 }
 
-PyObject *
-pg_track_obj_looping(PGTrackObject *self, PyObject *_null)
+static PyObject *
+pg_track_obj_get_looping(PGTrackObject *self, PyObject *_null)
 {
     return PyBool_FromLong(MIX_TrackLooping(self->track));
 }
 
+static PyObject *
+pg_track_obj_get_freq_ratio(PGTrackObject *self, PyObject *_null)
+{
+    float ratio = MIX_GetTrackFrequencyRatio(self->track);
+    if (ratio == 0.0f) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+    return PyFloat_FromDouble((double)ratio);
+}
+
+static int
+pg_track_obj_set_freq_ratio(PGTrackObject *self, PyObject *value, void *_null)
+{
+    double ratio = PyFloat_AsDouble(value);
+    if (!MIX_SetTrackFrequencyRatio(self->track, (float)ratio)) {
+        PyErr_SetString(pgExc_SDLError, SDL_GetError());
+        return -1;
+    }
+    return 0;
+}
+
+static PyObject *
+pg_track_obj_set_audio(PGTrackObject *self, PyObject *args, PyObject *kwargs)
+{
+    PyObject *audio_or_none = NULL;
+    char *keywords[] = {"audio", NULL};
+    PyObject *audio_type =
+        PyObject_GetAttrString((PyObject *)self, "_audio_type");
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O", keywords,
+                                     &audio_or_none)) {
+        return NULL;
+    }
+
+    MIX_Audio *audio = NULL;
+    if (PyObject_IsInstance(audio_or_none, audio_type)) {  // audio
+        audio = ((PGAudioObject *)audio_or_none)->audio;
+    }
+    else if (!Py_IsNone(audio_or_none)) {  // not audio, not none
+        return RAISE(PyExc_TypeError, "argument 1 must be Audio or None");
+    }
+
+    if (!MIX_SetTrackAudio(self->track, audio)) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    // We've successfully added (or removed) an audio, lets decref anything
+    // we were previously holding onto.
+    Py_XDECREF(self->source_obj);
+
+    if (audio != NULL) {
+        // We've successfully added an audio object, yay!
+        Py_INCREF(audio_or_none);
+        self->source_obj = audio_or_none;
+    }
+
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+pg_track_obj_get_audio(PGTrackObject *self, PyObject *_null)
+{
+    if (MIX_GetTrackAudio(self->track) != NULL) {
+        // This track object owns an audio, therefore our source object must
+        // be non-null, and an audio object.
+        Py_INCREF(self->source_obj);
+        return self->source_obj;
+    }
+
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+pg_track_obj_stop(PGTrackObject *self, PyObject *args, PyObject *kwargs)
+{
+    int64_t fade_out_frames = 0;
+    char *keywords[] = {"fade_out_frames", NULL};
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|L", keywords,
+                                     &fade_out_frames)) {
+        return NULL;
+    }
+
+    if (!MIX_StopTrack(self->track, fade_out_frames)) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+pg_track_obj_pause(PGTrackObject *self, PyObject *null)
+{
+    if (!MIX_PauseTrack(self->track)) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+pg_track_obj_resume(PGTrackObject *self, PyObject *null)
+{
+    if (!MIX_ResumeTrack(self->track)) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+    Py_RETURN_NONE;
+}
+
 static PyGetSetDef track_obj_getsets[] = {
-    {"playing", (getter)pg_track_obj_playing, NULL, "TODO", NULL},
-    {"paused", (getter)pg_track_obj_paused, NULL, "TODO", NULL},
-    {"looping", (getter)pg_track_obj_looping, NULL, "TODO", NULL},
+    {"playing", (getter)pg_track_obj_get_playing, NULL, "TODO", NULL},
+    {"paused", (getter)pg_track_obj_get_paused, NULL, "TODO", NULL},
+    {"looping", (getter)pg_track_obj_get_looping, NULL, "TODO", NULL},
+    {"frequency_ratio", (getter)pg_track_obj_get_freq_ratio, (setter)pg_track_obj_set_freq_ratio, "TODO", NULL},
     {NULL, NULL, NULL, NULL, NULL}};
+
+static PyMethodDef track_obj_methods[] = {
+    {"set_audio", (PyCFunction)pg_track_obj_set_audio,
+     METH_VARARGS | METH_KEYWORDS, "TODO"},
+    {"get_audio", (PyCFunction)pg_track_obj_get_audio, METH_NOARGS, "TODO"},
+    {"stop", (PyCFunction)pg_track_obj_stop, METH_VARARGS | METH_KEYWORDS,
+     "TODO"},
+    {"pause", (PyCFunction)pg_track_obj_pause, METH_NOARGS, "TODO"},
+    {"resume", (PyCFunction)pg_track_obj_resume, METH_NOARGS, "TODO"},
+    {NULL, NULL, 0, NULL}};
 
 static PyType_Slot track_slots[] = {{Py_tp_init, pg_track_obj_init},
                                     {Py_tp_dealloc, pg_track_obj_dealloc},
                                     {Py_tp_getset, track_obj_getsets},
+                                    {Py_tp_methods, track_obj_methods},
                                     {0, NULL}};
 
 static PyType_Spec track_spec = {.name = "Track",
@@ -512,8 +632,6 @@ static PyMethodDef _mixer_methods[] = {
 int
 exec_mixer(PyObject *module)
 {
-    printf("in exec mixer\n");
-
     /*imported needed apis*/
     import_pygame_base();
     if (PyErr_Occurred()) {
@@ -541,6 +659,7 @@ exec_mixer(PyObject *module)
 
     PyObject_SetAttrString(mixer_type, "_audio_type", audio_type);
     PyObject_SetAttrString(track_type, "_mixer_type", mixer_type);
+    PyObject_SetAttrString(track_type, "_audio_type", audio_type);
 
     _mixer_state *state = GET_STATE(module);
     state->mixer_initialized = false;
