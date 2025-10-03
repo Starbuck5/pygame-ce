@@ -502,6 +502,86 @@ pg_track_obj_get_audio(PGTrackObject *self, PyObject *_null)
     Py_RETURN_NONE;
 }
 
+#define SET_NUM_PROPERTY_IFNOTDEFAULT_ANDFLAG(props, property, value, \
+                                              default, success)       \
+    if (value != default) {                                           \
+        success &= SDL_SetNumberProperty(props, property, value);     \
+    }
+
+static PyObject *
+pg_track_obj_play(PGTrackObject *self, PyObject *args, PyObject *kwargs)
+{
+    int64_t loops = 0;
+    int64_t max_frame = -1, max_ms = -1;
+    int64_t start_frame = 0, start_ms = 0;
+    int64_t loop_start_frame = 0, loop_start_ms = 0;
+    int64_t fadein_frames = 0, fadein_ms = 0;
+    int64_t append_silence_frames = 0, append_silence_ms = 0;
+    char *keywords[] = {"loops",
+                        "max_frame",
+                        "max_ms",
+                        "start_frame",
+                        "start_ms",
+                        "loop_start_frame",
+                        "loop_start_ms",
+                        "fadein_frames",
+                        "fadein_ms",
+                        "append_silence_frames",
+                        "append_silence_ms",
+                        NULL};
+
+    if (!PyArg_ParseTupleAndKeywords(
+            args, kwargs, "|LLLLLLLLLLL", keywords, &loops, &max_frame,
+            &max_ms, &start_frame, &start_ms, &loop_start_frame,
+            &loop_start_ms, &fadein_frames, &fadein_ms, &append_silence_frames,
+            &append_silence_ms)) {
+        return NULL;
+    }
+
+    SDL_PropertiesID options = SDL_CreateProperties();
+    if (options == 0) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    bool success = true;
+
+    SET_NUM_PROPERTY_IFNOTDEFAULT_ANDFLAG(options, MIX_PROP_PLAY_LOOPS_NUMBER,
+                                          loops, 0, success);
+    SET_NUM_PROPERTY_IFNOTDEFAULT_ANDFLAG(
+        options, MIX_PROP_PLAY_MAX_FRAME_NUMBER, max_frame, -1, success);
+    SET_NUM_PROPERTY_IFNOTDEFAULT_ANDFLAG(
+        options, MIX_PROP_PLAY_MAX_MILLISECONDS_NUMBER, max_ms, -1, success);
+    SET_NUM_PROPERTY_IFNOTDEFAULT_ANDFLAG(
+        options, MIX_PROP_PLAY_START_FRAME_NUMBER, start_frame, 0, success);
+    SET_NUM_PROPERTY_IFNOTDEFAULT_ANDFLAG(
+        options, MIX_PROP_PLAY_START_MILLISECOND_NUMBER, start_ms, 0, success);
+    SET_NUM_PROPERTY_IFNOTDEFAULT_ANDFLAG(
+        options, MIX_PROP_PLAY_LOOP_START_FRAME_NUMBER, loop_start_frame, 0,
+        success);
+    SET_NUM_PROPERTY_IFNOTDEFAULT_ANDFLAG(
+        options, MIX_PROP_PLAY_LOOP_START_MILLISECOND_NUMBER, loop_start_ms, 0,
+        success);
+
+    SET_NUM_PROPERTY_IFNOTDEFAULT_ANDFLAG(options,
+                                          MIX_PROP_PLAY_FADE_IN_FRAMES_NUMBER,
+                                          fadein_frames, 0, success);
+    SET_NUM_PROPERTY_IFNOTDEFAULT_ANDFLAG(
+        options, MIX_PROP_PLAY_FADE_IN_MILLISECONDS_NUMBER, fadein_ms, 0,
+        success);
+    SET_NUM_PROPERTY_IFNOTDEFAULT_ANDFLAG(
+        options, MIX_PROP_PLAY_APPEND_SILENCE_FRAMES_NUMBER,
+        append_silence_frames, 0, success);
+    SET_NUM_PROPERTY_IFNOTDEFAULT_ANDFLAG(
+        options, MIX_PROP_PLAY_APPEND_SILENCE_MILLISECONDS_NUMBER,
+        append_silence_ms, 0, success);
+
+    if (!success || !MIX_PlayTrack(self->track, options)) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    Py_RETURN_NONE;
+}
+
 static PyObject *
 pg_track_obj_stop(PGTrackObject *self, PyObject *args, PyObject *kwargs)
 {
@@ -541,13 +621,16 @@ static PyGetSetDef track_obj_getsets[] = {
     {"playing", (getter)pg_track_obj_get_playing, NULL, "TODO", NULL},
     {"paused", (getter)pg_track_obj_get_paused, NULL, "TODO", NULL},
     {"looping", (getter)pg_track_obj_get_looping, NULL, "TODO", NULL},
-    {"frequency_ratio", (getter)pg_track_obj_get_freq_ratio, (setter)pg_track_obj_set_freq_ratio, "TODO", NULL},
+    {"frequency_ratio", (getter)pg_track_obj_get_freq_ratio,
+     (setter)pg_track_obj_set_freq_ratio, "TODO", NULL},
     {NULL, NULL, NULL, NULL, NULL}};
 
 static PyMethodDef track_obj_methods[] = {
     {"set_audio", (PyCFunction)pg_track_obj_set_audio,
      METH_VARARGS | METH_KEYWORDS, "TODO"},
     {"get_audio", (PyCFunction)pg_track_obj_get_audio, METH_NOARGS, "TODO"},
+    {"play", (PyCFunction)pg_track_obj_play, METH_VARARGS | METH_KEYWORDS,
+     "TODO"},
     {"stop", (PyCFunction)pg_track_obj_stop, METH_VARARGS | METH_KEYWORDS,
      "TODO"},
     {"pause", (PyCFunction)pg_track_obj_pause, METH_NOARGS, "TODO"},
