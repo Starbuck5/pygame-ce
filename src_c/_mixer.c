@@ -245,12 +245,22 @@ pg_audio_obj_init(PGAudioObject *self, PyObject *args, PyObject *kwargs)
 {
     int predecode = 0;
     PyObject *file = NULL;
+    PyObject *mixer_or_none = Py_None;
+    char *keywords[] = {"file", "predecode", "preferred_mixer", NULL};
+    PyObject *mixer_type =
+        PyObject_GetAttrString((PyObject *)self, "_mixer_type");
 
-    char *keywords[] = {"file", "predecode", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|pO", keywords, &file,
+                                     &predecode, &mixer_or_none)) {
+        return -1;
+    }
 
-    // TODO: preferred_mixer
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|p", keywords, &file,
-                                     &predecode)) {
+    MIX_Mixer *mixer = NULL;
+    if (PyObject_IsInstance(mixer_or_none, mixer_type)) {
+        mixer = ((PGMixerObject *)mixer_or_none)->mixer;
+    }
+    else if (!Py_IsNone(mixer_or_none)) {  // not mixer, not none
+        PyErr_SetString(PyExc_TypeError, "argument 3 must be Mixer or None");
         return -1;
     }
 
@@ -259,7 +269,7 @@ pg_audio_obj_init(PGAudioObject *self, PyObject *args, PyObject *kwargs)
         return -1;
     }
 
-    self->audio = MIX_LoadAudio_IO(NULL, io, predecode, true);
+    self->audio = MIX_LoadAudio_IO(mixer, io, predecode, true);
     if (self->audio == NULL) {
         PyErr_SetString(pgExc_SDLError, SDL_GetError());
         return -1;
