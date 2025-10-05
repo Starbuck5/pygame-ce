@@ -840,6 +840,28 @@ pg_mixer_quit(PyObject *module, PyObject *_null)
 }
 
 static PyObject *
+pg_mixer_get_sdl_mixer_version(PyObject *self, PyObject *args,
+                               PyObject *kwargs)
+{
+    int linked = 1; /* Default is linked version. */
+    int version = SDL_MIXER_VERSION;
+
+    char *keywords[] = {"linked", NULL};
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|p", keywords, &linked)) {
+        return NULL; /* Exception already set. */
+    }
+
+    if (linked) {
+        version = MIX_Version();
+    }
+
+    return Py_BuildValue("iii", PG_FIND_VNUM_MAJOR(version),
+                         PG_FIND_VNUM_MINOR(version),
+                         PG_FIND_VNUM_MICRO(version));
+}
+
+static PyObject *
 pg_mixer_get_decoders(PyObject *module, PyObject *_null)
 {
     _mixer_state *state = GET_STATE(module);
@@ -867,6 +889,8 @@ pg_mixer_get_decoders(PyObject *module, PyObject *_null)
 static PyMethodDef _mixer_methods[] = {
     {"init", (PyCFunction)pg_mixer_init, METH_NOARGS, "DOC_MIXER_INIT"},
     {"quit", (PyCFunction)pg_mixer_quit, METH_NOARGS, "DOC_MIXER_QUIT"},
+    {"get_sdl_mixer_version", (PyCFunction)pg_mixer_get_sdl_mixer_version,
+     METH_VARARGS | METH_KEYWORDS, "TODO"},
     {"get_decoders", (PyCFunction)pg_mixer_get_decoders, METH_NOARGS, "TODO"},
     {NULL, NULL, 0, NULL}};
 
