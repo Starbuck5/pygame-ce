@@ -307,6 +307,47 @@ pg_audio_obj_get_duration_infinite(PGAudioObject *self, void *_null)
 }
 
 static PyObject *
+pg_audio_obj_from_sine_wave(PyTypeObject *cls, PyObject *args,
+                            PyObject *kwargs)
+{
+    int hz;
+    float amplitude;
+    PyObject *mixer_or_none = Py_None;
+    char *keywords[] = {"hz", "amplitude", "preferred_mixer", NULL};
+    PyObject *mixer_type =
+        PyObject_GetAttrString((PyObject *)cls, "_mixer_type");
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "if|O", keywords, &hz,
+                                     &amplitude, &mixer_or_none)) {
+        return NULL;
+    }
+
+    MIX_Mixer *mixer = NULL;
+    if (PyObject_IsInstance(mixer_or_none, mixer_type)) {
+        mixer = ((PGMixerObject *)mixer_or_none)->mixer;
+    }
+    else if (!Py_IsNone(mixer_or_none)) {  // not mixer, not none
+        return RAISE(PyExc_TypeError, "argument 3 must be Mixer or None");
+    }
+
+    PGAudioObject *self = (PGAudioObject *)cls->tp_alloc(cls, 0);
+    if (self == NULL) {
+        return NULL;
+    }
+    Py_INCREF(self);
+
+    // MIX_CreateSineWaveAudio is bugged rigth now (2025-10-04),
+    // complains about invalid context parameter.
+    MIX_Audio *sine_wave_audio = MIX_CreateSineWaveAudio(mixer, hz, amplitude);
+    if (sine_wave_audio == NULL) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    self->audio = sine_wave_audio;
+    return (PyObject *)self;
+}
+
+static PyObject *
 pg_audio_obj_ms_to_frames(PGAudioObject *self, PyObject *args,
                           PyObject *kwargs)
 {
@@ -353,6 +394,8 @@ static PyGetSetDef audio_obj_getsets[] = {
     {NULL, NULL, NULL, NULL, NULL}};
 
 static PyMethodDef audio_obj_methods[] = {
+    {"from_sine_wave", (PyCFunction)pg_audio_obj_from_sine_wave,
+     METH_CLASS | METH_VARARGS | METH_KEYWORDS, "TODO"},
     {"ms_to_frames", (PyCFunction)pg_audio_obj_ms_to_frames,
      METH_VARARGS | METH_KEYWORDS, "TODO"},
     {"frames_to_ms", (PyCFunction)pg_audio_obj_frames_to_ms,
@@ -740,9 +783,18 @@ exec_mixer(PyObject *module)
         return -1;
     }
 
-    PyObject_SetAttrString(mixer_type, "_audio_type", audio_type);
-    PyObject_SetAttrString(track_type, "_mixer_type", mixer_type);
-    PyObject_SetAttrString(track_type, "_audio_type", audio_type);
+    if (PyObject_SetAttrString(mixer_type, "_audio_type", audio_type) < 0) {
+        return -1;
+    }
+    if (PyObject_SetAttrString(track_type, "_mixer_type", mixer_type) < 0) {
+        return -1;
+    }
+    if (PyObject_SetAttrString(track_type, "_audio_type", audio_type) < 0) {
+        return -1;
+    }
+    if (PyObject_SetAttrString(audio_type, "_mixer_type", mixer_type) < 0) {
+        return -1;
+    }
 
     _mixer_state *state = GET_STATE(module);
     state->mixer_initialized = false;
