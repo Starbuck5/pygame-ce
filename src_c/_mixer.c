@@ -27,21 +27,120 @@ typedef struct {
 } PGTrackObject;
 
 // ***************************************************************************
+// GLOBAL HELPER FUNCTIONS
+// ***************************************************************************
+
+#define SET_NUM_PROPERTY_IFNOTDEFAULT_ANDFLAG(props, property, value, \
+                                              default, success)       \
+    if (value != default) {                                           \
+        success &= SDL_SetNumberProperty(props, property, value);     \
+    }
+
+static bool
+pg_populate_play_props(SDL_PropertiesID options, int64_t loops,
+                       int64_t max_frame, int64_t max_ms, int64_t start_frame,
+                       int64_t start_ms, int64_t loop_start_frame,
+                       int64_t loop_start_ms, int64_t fadein_frames,
+                       int64_t fadein_ms, int64_t append_silence_frames,
+                       int64_t append_silence_ms)
+{
+    bool success = true;
+
+    SET_NUM_PROPERTY_IFNOTDEFAULT_ANDFLAG(options, MIX_PROP_PLAY_LOOPS_NUMBER,
+                                          loops, 0, success);
+    SET_NUM_PROPERTY_IFNOTDEFAULT_ANDFLAG(
+        options, MIX_PROP_PLAY_MAX_FRAME_NUMBER, max_frame, -1, success);
+    SET_NUM_PROPERTY_IFNOTDEFAULT_ANDFLAG(
+        options, MIX_PROP_PLAY_MAX_MILLISECONDS_NUMBER, max_ms, -1, success);
+    SET_NUM_PROPERTY_IFNOTDEFAULT_ANDFLAG(
+        options, MIX_PROP_PLAY_START_FRAME_NUMBER, start_frame, 0, success);
+    SET_NUM_PROPERTY_IFNOTDEFAULT_ANDFLAG(
+        options, MIX_PROP_PLAY_START_MILLISECOND_NUMBER, start_ms, 0, success);
+    SET_NUM_PROPERTY_IFNOTDEFAULT_ANDFLAG(
+        options, MIX_PROP_PLAY_LOOP_START_FRAME_NUMBER, loop_start_frame, 0,
+        success);
+    SET_NUM_PROPERTY_IFNOTDEFAULT_ANDFLAG(
+        options, MIX_PROP_PLAY_LOOP_START_MILLISECOND_NUMBER, loop_start_ms, 0,
+        success);
+
+    SET_NUM_PROPERTY_IFNOTDEFAULT_ANDFLAG(options,
+                                          MIX_PROP_PLAY_FADE_IN_FRAMES_NUMBER,
+                                          fadein_frames, 0, success);
+    SET_NUM_PROPERTY_IFNOTDEFAULT_ANDFLAG(
+        options, MIX_PROP_PLAY_FADE_IN_MILLISECONDS_NUMBER, fadein_ms, 0,
+        success);
+    SET_NUM_PROPERTY_IFNOTDEFAULT_ANDFLAG(
+        options, MIX_PROP_PLAY_APPEND_SILENCE_FRAMES_NUMBER,
+        append_silence_frames, 0, success);
+    SET_NUM_PROPERTY_IFNOTDEFAULT_ANDFLAG(
+        options, MIX_PROP_PLAY_APPEND_SILENCE_MILLISECONDS_NUMBER,
+        append_silence_ms, 0, success);
+
+    return success;
+}
+
+// ***************************************************************************
 // MIXER.MIXER CLASS
 // ***************************************************************************
 
 static PyObject *
-pg_mixer_obj_play(PGMixerObject *self, PyObject *arg)
+pg_mixer_obj_play_audio(PGMixerObject *self, PyObject *args, PyObject *kwargs)
 {
-    if (!PyObject_IsInstance(
-            arg, PyObject_GetAttrString((PyObject *)self, "_audio_type"))) {
-        return RAISE(PyExc_TypeError, "audio must be an Audio");
+    PGAudioObject *audio;
+    char *keywords[] = {"audio", NULL};
+    PyObject *audio_type =
+        PyObject_GetAttrString((PyObject *)self, "_audio_type");
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O!", keywords, audio_type,
+                                     &audio)) {
+        return NULL;
     }
 
-    PGAudioObject *audio = (PGAudioObject *)arg;
     if (!MIX_PlayAudio(self->mixer, audio->audio)) {
         return RAISE(pgExc_SDLError, SDL_GetError());
     }
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+pg_mixer_obj_play_tag(PGMixerObject *self, PyObject *args, PyObject *kwargs)
+{
+    char *tag;
+    int64_t loops = 0;
+    int64_t max_ms = -1;
+    int64_t start_ms = 0, loop_start_ms = 0;
+    int64_t fadein_ms = 0, append_silence_ms = 0;
+    char *keywords[] = {"tag",
+                        "loops",
+                        "max_ms",
+                        "start_ms",
+                        "loop_start_ms",
+                        "fadein_ms",
+                        "append_silence_ms",
+                        NULL};
+
+    if (!PyArg_ParseTupleAndKeywords(
+            args, kwargs, "s|LLLLLLLLLLL", keywords, &tag, &loops, &max_ms,
+            &start_ms, &loop_start_ms, &fadein_ms, &append_silence_ms)) {
+        return NULL;
+    }
+
+    SDL_PropertiesID options = SDL_CreateProperties();
+    if (options == 0) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    // Since frames can be not meaningful between tracks with different sample
+    // rates, the frames arguments are not passed through here or exposed to
+    // Python, unlike in Track.play().
+    bool success = pg_populate_play_props(options, loops, -1, max_ms, 0,
+                                          start_ms, 0, loop_start_ms, 0,
+                                          fadein_ms, 0, append_silence_ms);
+
+    if (!success || !MIX_PlayTag(self->mixer, tag, options)) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
     Py_RETURN_NONE;
 }
 
@@ -181,24 +280,6 @@ pg_mixer_obj_dealloc(PGMixerObject *self)
     self->mixer = NULL;
 }
 
-static PyMethodDef mixer_methods[] = {
-    {"play_audio", (PyCFunction)pg_mixer_obj_play, METH_O, "TODO"},
-    {"stop_tag", (PyCFunction)pg_mixer_obj_stop_tag,
-     METH_VARARGS | METH_KEYWORDS, "TODO"},
-    {"pause_tag", (PyCFunction)pg_mixer_obj_pause_tag,
-     METH_VARARGS | METH_KEYWORDS, "TODO"},
-    {"resume_tag", (PyCFunction)pg_mixer_obj_resume_tag,
-     METH_VARARGS | METH_KEYWORDS, "TODO"},
-    {"set_tag_gain", (PyCFunction)pg_mixer_obj_set_tag_gain,
-     METH_VARARGS | METH_KEYWORDS, "TODO"},
-    {"stop_all_tracks", (PyCFunction)pg_mixer_obj_stop_all_tracks,
-     METH_VARARGS | METH_KEYWORDS, "TODO"},
-    {"pause_all_tracks", (PyCFunction)pg_mixer_obj_pause_all_tracks,
-     METH_NOARGS, "TODO"},
-    {"resume_all_tracks", (PyCFunction)pg_mixer_obj_resume_all_tracks,
-     METH_NOARGS, "TODO"},
-    {NULL, NULL, 0, NULL}};
-
 static PyObject *
 pg_mixer_obj_get_gain(PGMixerObject *self, void *_null)
 {
@@ -224,7 +305,28 @@ static PyGetSetDef mixer_obj_getsets[] = {
      "TODO", NULL},
     {NULL, NULL, NULL, NULL, NULL}};
 
-static PyType_Slot mixer_slots[] = {{Py_tp_methods, mixer_methods},
+static PyMethodDef mixer_obj_methods[] = {
+    {"play_tag", (PyCFunction)pg_mixer_obj_play_tag,
+     METH_VARARGS | METH_KEYWORDS, "TODO"},
+    {"stop_tag", (PyCFunction)pg_mixer_obj_stop_tag,
+     METH_VARARGS | METH_KEYWORDS, "TODO"},
+    {"pause_tag", (PyCFunction)pg_mixer_obj_pause_tag,
+     METH_VARARGS | METH_KEYWORDS, "TODO"},
+    {"resume_tag", (PyCFunction)pg_mixer_obj_resume_tag,
+     METH_VARARGS | METH_KEYWORDS, "TODO"},
+    {"set_tag_gain", (PyCFunction)pg_mixer_obj_set_tag_gain,
+     METH_VARARGS | METH_KEYWORDS, "TODO"},
+    {"play_audio", (PyCFunction)pg_mixer_obj_play_audio,
+     METH_VARARGS | METH_KEYWORDS, "TODO"},
+    {"stop_all_tracks", (PyCFunction)pg_mixer_obj_stop_all_tracks,
+     METH_VARARGS | METH_KEYWORDS, "TODO"},
+    {"pause_all_tracks", (PyCFunction)pg_mixer_obj_pause_all_tracks,
+     METH_NOARGS, "TODO"},
+    {"resume_all_tracks", (PyCFunction)pg_mixer_obj_resume_all_tracks,
+     METH_NOARGS, "TODO"},
+    {NULL, NULL, 0, NULL}};
+
+static PyType_Slot mixer_slots[] = {{Py_tp_methods, mixer_obj_methods},
                                     {Py_tp_init, pg_mixer_obj_init},
                                     {Py_tp_getset, mixer_obj_getsets},
                                     {Py_tp_dealloc, pg_mixer_obj_dealloc},
@@ -596,42 +698,45 @@ pg_track_obj_play(PGTrackObject *self, PyObject *args, PyObject *kwargs)
         return RAISE(pgExc_SDLError, SDL_GetError());
     }
 
-    bool success = true;
-
-    SET_NUM_PROPERTY_IFNOTDEFAULT_ANDFLAG(options, MIX_PROP_PLAY_LOOPS_NUMBER,
-                                          loops, 0, success);
-    SET_NUM_PROPERTY_IFNOTDEFAULT_ANDFLAG(
-        options, MIX_PROP_PLAY_MAX_FRAME_NUMBER, max_frame, -1, success);
-    SET_NUM_PROPERTY_IFNOTDEFAULT_ANDFLAG(
-        options, MIX_PROP_PLAY_MAX_MILLISECONDS_NUMBER, max_ms, -1, success);
-    SET_NUM_PROPERTY_IFNOTDEFAULT_ANDFLAG(
-        options, MIX_PROP_PLAY_START_FRAME_NUMBER, start_frame, 0, success);
-    SET_NUM_PROPERTY_IFNOTDEFAULT_ANDFLAG(
-        options, MIX_PROP_PLAY_START_MILLISECOND_NUMBER, start_ms, 0, success);
-    SET_NUM_PROPERTY_IFNOTDEFAULT_ANDFLAG(
-        options, MIX_PROP_PLAY_LOOP_START_FRAME_NUMBER, loop_start_frame, 0,
-        success);
-    SET_NUM_PROPERTY_IFNOTDEFAULT_ANDFLAG(
-        options, MIX_PROP_PLAY_LOOP_START_MILLISECOND_NUMBER, loop_start_ms, 0,
-        success);
-
-    SET_NUM_PROPERTY_IFNOTDEFAULT_ANDFLAG(options,
-                                          MIX_PROP_PLAY_FADE_IN_FRAMES_NUMBER,
-                                          fadein_frames, 0, success);
-    SET_NUM_PROPERTY_IFNOTDEFAULT_ANDFLAG(
-        options, MIX_PROP_PLAY_FADE_IN_MILLISECONDS_NUMBER, fadein_ms, 0,
-        success);
-    SET_NUM_PROPERTY_IFNOTDEFAULT_ANDFLAG(
-        options, MIX_PROP_PLAY_APPEND_SILENCE_FRAMES_NUMBER,
-        append_silence_frames, 0, success);
-    SET_NUM_PROPERTY_IFNOTDEFAULT_ANDFLAG(
-        options, MIX_PROP_PLAY_APPEND_SILENCE_MILLISECONDS_NUMBER,
-        append_silence_ms, 0, success);
+    bool success = pg_populate_play_props(
+        options, loops, max_frame, max_ms, start_frame, start_ms,
+        loop_start_frame, loop_start_ms, fadein_frames, fadein_ms,
+        append_silence_frames, append_silence_ms);
 
     if (!success || !MIX_PlayTrack(self->track, options)) {
         return RAISE(pgExc_SDLError, SDL_GetError());
     }
 
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+pg_track_obj_add_tag(PGTrackObject *self, PyObject *args, PyObject *kwargs)
+{
+    char *tag;
+    char *keywords[] = {"tag", NULL};
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s", keywords, &tag)) {
+        return NULL;
+    }
+
+    if (!MIX_TagTrack(self->track, tag)) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+pg_track_obj_remove_tag(PGTrackObject *self, PyObject *args, PyObject *kwargs)
+{
+    char *tag;
+    char *keywords[] = {"tag", NULL};
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s", keywords, &tag)) {
+        return NULL;
+    }
+
+    MIX_UntagTrack(self->track, tag);  // no error return!
     Py_RETURN_NONE;
 }
 
@@ -684,6 +789,10 @@ static PyMethodDef track_obj_methods[] = {
     {"get_audio", (PyCFunction)pg_track_obj_get_audio, METH_NOARGS, "TODO"},
     {"play", (PyCFunction)pg_track_obj_play, METH_VARARGS | METH_KEYWORDS,
      "TODO"},
+    {"add_tag", (PyCFunction)pg_track_obj_add_tag,
+     METH_VARARGS | METH_KEYWORDS, "TODO"},
+    {"remove_tag", (PyCFunction)pg_track_obj_remove_tag,
+     METH_VARARGS | METH_KEYWORDS, "TODO"},
     {"stop", (PyCFunction)pg_track_obj_stop, METH_VARARGS | METH_KEYWORDS,
      "TODO"},
     {"pause", (PyCFunction)pg_track_obj_pause, METH_NOARGS, "TODO"},
