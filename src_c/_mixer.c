@@ -418,6 +418,48 @@ pg_audio_obj_get_duration_infinite(PGAudioObject *self, void *_null)
     Py_RETURN_FALSE;  // not infinite / unknown
 }
 
+// NOT FINISHED, NEEDS AUDIOSPEC SUPPORT FIRST.
+static PyObject *
+pg_audio_obj_from_raw(PyTypeObject *cls, PyObject *args, PyObject *kwargs)
+{
+    PyObject *buffer;
+    PyObject *mixer_or_none = Py_None;
+    char *keywords[] = {"buffer", "preferred_mixer", NULL};
+    PyObject *mixer_type =
+        PyObject_GetAttrString((PyObject *)cls, "_mixer_type");
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|O", keywords, &buffer,
+                                     &mixer_or_none)) {
+        return NULL;
+    }
+
+    MIX_Mixer *mixer = NULL;
+    if (PyObject_IsInstance(mixer_or_none, mixer_type)) {
+        mixer = ((PGMixerObject *)mixer_or_none)->mixer;
+    }
+    else if (!Py_IsNone(mixer_or_none)) {  // not mixer, not none
+        return RAISE(PyExc_TypeError, "argument 2 must be Mixer or None");
+    }
+
+    PyObject *bytes = PyBytes_FromObject(buffer);
+    if (bytes == NULL) {
+        return NULL;
+    }
+
+    PGAudioObject *self = (PGAudioObject *)cls->tp_alloc(cls, 0);
+    if (self == NULL) {
+        Py_DECREF(bytes);
+        return NULL;
+    }
+    Py_INCREF(self);
+
+    // MIX_LoadRawAudio(mixer, );
+    // Py_DECREF(bytes);
+    // printf("buffer=%p, bytes=%p\n", buffer, bytes);
+
+    Py_RETURN_NONE;
+}
+
 static PyObject *
 pg_audio_obj_from_sine_wave(PyTypeObject *cls, PyObject *args,
                             PyObject *kwargs)
@@ -448,7 +490,7 @@ pg_audio_obj_from_sine_wave(PyTypeObject *cls, PyObject *args,
     }
     Py_INCREF(self);
 
-    // MIX_CreateSineWaveAudio is bugged rigth now (2025-10-04),
+    // MIX_CreateSineWaveAudio is bugged right now (2025-10-04),
     // complains about invalid context parameter.
     MIX_Audio *sine_wave_audio = MIX_CreateSineWaveAudio(mixer, hz, amplitude);
     if (sine_wave_audio == NULL) {
@@ -497,6 +539,60 @@ pg_audio_obj_frames_to_ms(PGAudioObject *self, PyObject *args,
     return PyLong_FromLongLong(ms);
 }
 
+static PyObject *
+pg_audio_obj_get_metadata(PGAudioObject *self, PyObject *_null)
+{
+    SDL_PropertiesID props = MIX_GetAudioProperties(self->audio);
+    if (props == 0) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    // Lock properties for a bit while transferring data out, for safety
+    if (!SDL_LockProperties(props)) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    const char *title =
+        SDL_GetStringProperty(props, MIX_PROP_METADATA_TITLE_STRING, NULL);
+    const char *artist =
+        SDL_GetStringProperty(props, MIX_PROP_METADATA_ARTIST_STRING, NULL);
+    const char *album =
+        SDL_GetStringProperty(props, MIX_PROP_METADATA_ALBUM_STRING, NULL);
+    const char *copyright =
+        SDL_GetStringProperty(props, MIX_PROP_METADATA_COPYRIGHT_STRING, NULL);
+
+    PyObject *track_obj;
+    if (SDL_GetPropertyType(props, MIX_PROP_METADATA_TRACK_NUMBER) ==
+        SDL_PROPERTY_TYPE_NUMBER) {
+        int64_t track_no =
+            SDL_GetNumberProperty(props, MIX_PROP_METADATA_TRACK_NUMBER, 0);
+        track_obj = PyLong_FromInt64(track_no);
+    }
+    else {
+        track_obj = Py_NewRef(Py_None);
+    }
+
+    PyObject *total_track_obj;
+    if (SDL_GetPropertyType(props, MIX_PROP_METADATA_TOTAL_TRACKS_NUMBER) ==
+        SDL_PROPERTY_TYPE_NUMBER) {
+        int64_t track_no = SDL_GetNumberProperty(
+            props, MIX_PROP_METADATA_TOTAL_TRACKS_NUMBER, 0);
+        total_track_obj = PyLong_FromInt64(track_no);
+    }
+    else {
+        total_track_obj = Py_NewRef(Py_None);
+    }
+
+    PyObject *meta_dict =
+        Py_BuildValue("{sz sz sz sz sN sN}", "title", title, "artist", artist,
+                      "album", album, "copyright", copyright, "track",
+                      track_obj, "total_tracks", total_track_obj);
+
+    SDL_UnlockProperties(props);
+
+    return meta_dict;
+}
+
 static PyGetSetDef audio_obj_getsets[] = {
     {"duration_frames", (getter)pg_audio_obj_get_duration_frames, NULL, "TODO",
      NULL},
@@ -508,10 +604,14 @@ static PyGetSetDef audio_obj_getsets[] = {
 static PyMethodDef audio_obj_methods[] = {
     {"from_sine_wave", (PyCFunction)pg_audio_obj_from_sine_wave,
      METH_CLASS | METH_VARARGS | METH_KEYWORDS, "TODO"},
+    //{"from_raw", (PyCFunction)pg_audio_obj_from_raw,
+    // METH_CLASS | METH_VARARGS | METH_KEYWORDS, "TODO"},
     {"ms_to_frames", (PyCFunction)pg_audio_obj_ms_to_frames,
      METH_VARARGS | METH_KEYWORDS, "TODO"},
     {"frames_to_ms", (PyCFunction)pg_audio_obj_frames_to_ms,
      METH_VARARGS | METH_KEYWORDS, "TODO"},
+    {"get_metadata", (PyCFunction)pg_audio_obj_get_metadata, METH_NOARGS,
+     "TODO"},
     {NULL, NULL, 0, NULL}};
 
 static PyType_Slot audio_slots[] = {{Py_tp_init, pg_audio_obj_init},
