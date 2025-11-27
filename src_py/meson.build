@@ -30,6 +30,7 @@ endif
 
 if sdl_api == 3
     py.install_sources('mixer.py', subdir: pg)
+    py.install_sources('_audio.py', subdir: pg)
 endif
 
 data_files = files(

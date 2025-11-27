@@ -1,5 +1,13 @@
-from dataclasses import dataclass
 import pygame.base
+import pygame._base_audio as _base_audio
+
+
+init = _base_audio.init
+quit = _base_audio.quit
+get_current_driver = _base_audio.get_current_driver
+get_drivers = _base_audio.get_drivers
+get_playback_devices = _base_audio.get_playback_devices
+get_recording_devices = _base_audio.get_recording_devices
 
 
 class AudioFormat:
@@ -79,15 +87,23 @@ else:
     F32 = F32BE
 
 
-@dataclass
 class AudioSpec:
-    format: AudioFormat
-    channels: int
-    frequency: int
+    def __init__(self, format: AudioFormat, channels: int, frequency: int) -> None:
+        if not isinstance(format, AudioFormat):
+            raise TypeError(
+                f"AudioSpec format must be an AudioFormat, received {type(format)}"
+            )
+
+        self.format = format
+        self.channels = channels
+        self.frequency = frequency
 
     @property
     def framesize(self) -> int:
         return self.format.bytesize * self.channels
 
-
-del dataclass
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__module__}.{self.__class__.__name__}"
+            f"({self.format}. {self.channels}, {self.frequency})"
+        )

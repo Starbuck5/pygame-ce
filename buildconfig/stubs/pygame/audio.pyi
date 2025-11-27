@@ -59,14 +59,11 @@ S16: AudioFormat
 S32: AudioFormat
 F32: AudioFormat
 
-@dataclass
 class AudioSpec:
-    format: AudioFormat
-    channels: int
-    freq: int
-
+    def __init__(self, format: AudioFormat, channels: int, frequency: int) -> None: ...
     @property
     def framesize(self) -> int: ...
+    def __repr__(self) -> str: ...
 
 class AudioDevice:
     def open(self, spec: AudioSpec | None) -> LogicalAudioDevice: ...

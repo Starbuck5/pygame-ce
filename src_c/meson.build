@@ -453,8 +453,8 @@ else
     )
 
     base_audio = py.extension_module(
-        'base_audio',
-        'base_audio.c',
+        '_base_audio',
+        '_base_audio.c',
         c_args: warnings_error,
         dependencies: pg_base_deps,
         install: true,
