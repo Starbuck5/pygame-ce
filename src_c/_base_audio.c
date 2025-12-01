@@ -7,16 +7,11 @@
 
 typedef struct {
     bool audio_initialized;
-    PyObject *audio_device_type;
     PyObject *audio_device_state_type;
     PyObject *audio_stream_state_type;
 } audio_state;
 
 #define GET_STATE(x) (audio_state *)PyModule_GetState(x)
-
-typedef struct {
-    PyObject_HEAD SDL_AudioDeviceID devid;
-} PGAudioDeviceObject;
 
 typedef struct {
     PyObject_HEAD SDL_AudioDeviceID devid;
@@ -26,23 +21,12 @@ typedef struct {
     PyObject_HEAD SDL_AudioStream *stream;
 } PGAudioStreamStateObject;
 
-typedef struct {
-    PyObject_HEAD
-} PGLogicalAudioDeviceObject;
-
-typedef struct {
-    PyObject_HEAD
-} PGAudioStreamObject;
-
 #define AUDIO_INIT_CHECK(module)                               \
     if (!(GET_STATE(module))->audio_initialized) {             \
         return RAISE(pgExc_SDLError, "audio not initialized"); \
     }
 
-// ***************************************************************************
-// AUDIO.AUDIODEVICE CLASS (old)
-// ***************************************************************************
-
+#if 0
 static PyObject *
 pg_adevice_obj_get_channel_map(PGAudioDeviceObject *self, PyObject *_null)
 {
@@ -68,38 +52,7 @@ pg_adevice_obj_get_channel_map(PGAudioDeviceObject *self, PyObject *_null)
     SDL_free(channel_map);
     return channel_map_list;
 }
-
-static PyObject *
-pg_adevice_obj_get_name(PGAudioDeviceObject *self, void *_null)
-{
-    const char *name = SDL_GetAudioDeviceName(self->devid);
-    if (name == NULL) {
-        return RAISE(pgExc_SDLError, SDL_GetError());
-    }
-    return PyUnicode_FromString(name);
-}
-
-static PyGetSetDef adevice_obj_getsets[] = {
-    {"name", (getter)pg_adevice_obj_get_name, NULL, "TODO", NULL},
-    {NULL, NULL, NULL, NULL, NULL}};
-
-static PyMethodDef adevice_obj_methods[] = {
-    {"get_channel_map", (PyCFunction)pg_adevice_obj_get_channel_map,
-     METH_NOARGS, "TODO"},
-    {NULL, NULL, 0, NULL}};
-
-static PyType_Slot adevice_slots[] = {{Py_tp_methods, adevice_obj_methods},
-                                      {Py_tp_getset, adevice_obj_getsets},
-                                      {0, NULL}};
-
-static PyType_Spec adevice_spec = {
-    .name = "BaseAudioDevice",
-    .basicsize = sizeof(PGAudioDeviceObject),
-    .itemsize = 0,
-    // todo apparently needs to support GC
-    // https://docs.python.org/3/c-api/typeobj.html#c.Py_TPFLAGS_HEAPTYPE
-    .flags = Py_TPFLAGS_BASETYPE,
-    .slots = adevice_slots};
+#endif
 
 // ***************************************************************************
 // AUDIO.AUDIODEVICE CLASS
@@ -385,44 +338,32 @@ pg_audio_get_drivers(PyObject *module, PyObject *_null)
     return driver_list;
 }
 
+// Returns Python list of DeviceState objects, or NULL with error set.
 static PyObject *
-pg_audio_get_playback_devices(PyObject *module, PyObject *_null)
+_pg_audio_device_array_to_pylist(SDL_AudioDeviceID *devices, int num_devices,
+                                 PyTypeObject *adevice_state_type)
 {
-    // audio_state *state = GET_STATE(module);
-    // PyTypeObject *adevice_type = (PyTypeObject *)state->audio_device_type;
-
-    PyTypeObject *adevice_type =
-        (PyTypeObject *)PyObject_GetAttrString(module, "AudioDevice");
-    if (adevice_type == NULL) {
-        return NULL;
-    }
-
-    int num_devices;
-    SDL_AudioDeviceID *devices = SDL_GetAudioPlaybackDevices(&num_devices);
-
     if (devices == NULL) {
         return RAISE(pgExc_SDLError, SDL_GetError());
     }
 
     PyObject *device_list = PyList_New(num_devices);
     if (device_list == NULL) {
-        SDL_free(devices);
         return NULL;
     }
-    PGAudioDeviceObject *device;
+    PGAudioDeviceStateObject *device;
     for (int i = 0; i < num_devices; i++) {
-        device =
-            (PGAudioDeviceObject *)adevice_type->tp_alloc(adevice_type, 0);
+        device = (PGAudioDeviceStateObject *)adevice_state_type->tp_alloc(
+            adevice_state_type, 0);
         if (device == NULL) {
-            SDL_free(devices);
             Py_DECREF(device_list);
             return NULL;
         }
         device->devid = devices[i];
         if (PyList_SetItem(device_list, i, (PyObject *)device) < 0) {
-            SDL_free(devices);
             Py_DECREF(device);
             Py_DECREF(device_list);
+            return NULL;
         }
     }
 
@@ -439,71 +380,26 @@ pg_audio_get_playback_device_states(PyObject *module, PyObject *_null)
     int num_devices;
     SDL_AudioDeviceID *devices = SDL_GetAudioPlaybackDevices(&num_devices);
 
-    if (devices == NULL) {
-        return RAISE(pgExc_SDLError, SDL_GetError());
-    }
-
-    PyObject *device_list = PyList_New(num_devices);
-    if (device_list == NULL) {
-        SDL_free(devices);
-        return NULL;
-    }
-    PGAudioDeviceStateObject *device;
-    for (int i = 0; i < num_devices; i++) {
-        device = (PGAudioDeviceStateObject *)adevice_state_type->tp_alloc(
-            adevice_state_type, 0);
-        if (device == NULL) {
-            SDL_free(devices);
-            Py_DECREF(device_list);
-            return NULL;
-        }
-        device->devid = devices[i];
-        if (PyList_SetItem(device_list, i, (PyObject *)device) < 0) {
-            SDL_free(devices);
-            Py_DECREF(device);
-            Py_DECREF(device_list);
-        }
-    }
-
-    return device_list;
+    PyObject *dev_list = _pg_audio_device_array_to_pylist(devices, num_devices,
+                                                          adevice_state_type);
+    SDL_free(devices);
+    return dev_list;  // Fine if NULL, error already set.
 }
 
 static PyObject *
-pg_audio_get_recording_devices(PyObject *module, PyObject *_null)
+pg_audio_get_recording_device_states(PyObject *module, PyObject *_null)
 {
     audio_state *state = GET_STATE(module);
-    PyTypeObject *adevice_type = (PyTypeObject *)state->audio_device_type;
+    PyTypeObject *adevice_state_type =
+        (PyTypeObject *)state->audio_device_state_type;
 
     int num_devices;
     SDL_AudioDeviceID *devices = SDL_GetAudioRecordingDevices(&num_devices);
 
-    if (devices == NULL) {
-        return RAISE(pgExc_SDLError, SDL_GetError());
-    }
-
-    PyObject *device_list = PyList_New(num_devices);
-    if (device_list == NULL) {
-        SDL_free(devices);
-        return NULL;
-    }
-    PGAudioDeviceObject *device;
-    for (int i = 0; i < num_devices; i++) {
-        device =
-            (PGAudioDeviceObject *)adevice_type->tp_alloc(adevice_type, 0);
-        if (device == NULL) {
-            SDL_free(devices);
-            Py_DECREF(device_list);
-            return NULL;
-        }
-        device->devid = devices[i];
-        if (PyList_SetItem(device_list, i, (PyObject *)device) < 0) {
-            SDL_free(devices);
-            Py_DECREF(device);
-            Py_DECREF(device_list);
-        }
-    }
-
-    return device_list;
+    PyObject *dev_list = _pg_audio_device_array_to_pylist(devices, num_devices,
+                                                          adevice_state_type);
+    SDL_free(devices);
+    return dev_list;  // Fine if NULL, error already set.
 }
 
 static PyObject *
@@ -530,12 +426,10 @@ static PyMethodDef audio_methods[] = {
     {"get_current_driver", (PyCFunction)pg_audio_get_current_driver,
      METH_NOARGS, "TODO"},
     {"get_drivers", (PyCFunction)pg_audio_get_drivers, METH_NOARGS, "TODO"},
-    {"get_playback_devices", (PyCFunction)pg_audio_get_playback_devices,
-     METH_NOARGS, "TODO"},
     {"get_playback_device_states",
-     (PyCFunction)pg_audio_get_playback_device_states, METH_NOARGS, "TODO"},
-    {"get_recording_devices", (PyCFunction)pg_audio_get_recording_devices,
-     METH_NOARGS, "TODO"},
+     (PyCFunction)pg_audio_get_playback_device_states, METH_NOARGS, NULL},
+    {"get_recording_device_states",
+     (PyCFunction)pg_audio_get_recording_device_states, METH_NOARGS, NULL},
 
     // AudioDevice utilities
     {"get_audio_device_name", (PyCFunction)pg_audio_get_audio_device_name,
@@ -576,20 +470,12 @@ exec_audio(PyObject *module)
         return -1;
     }
 
-    PyObject *audio_device_type =
-        PyType_FromModuleAndSpec(module, &adevice_spec, NULL);
-    if (PyModule_AddObjectRef(module, "BaseAudioDevice", audio_device_type) <
-        0) {
-        return -1;
-    }
-
     audio_state *state = GET_STATE(module);
     state->audio_initialized = false;
-    state->audio_device_type = audio_device_type;
 
     PyObject *audio_device_state_type =
         PyType_FromModuleAndSpec(module, &adevice_state_spec, NULL);
-    if (PyModule_AddObjectRef(module, "AudioDeviceState", audio_device_type) <
+    if (PyModule_AddObjectRef(module, "AudioDeviceState", audio_device_state_type) <
         0) {
         return -1;
     }

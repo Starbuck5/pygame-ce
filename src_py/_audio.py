@@ -211,6 +211,10 @@ get_current_driver = _base_audio.get_current_driver
 get_drivers = _base_audio.get_drivers
 
 
+# UGH, AudioDevices should probably be singletons based on the device id. ?
+# TODO: deal with that.
+
+
 def get_playback_devices() -> list[AudioDevice]:
     output = []
 
@@ -222,5 +226,12 @@ def get_playback_devices() -> list[AudioDevice]:
     return output
 
 
-# get_playback_devices = _base_audio.get_playback_devices
-get_recording_devices = _base_audio.get_recording_devices
+def get_recording_devices() -> list[AudioDevice]:
+    output = []
+
+    for dev_state in _base_audio.get_recording_device_states():
+        device = object.__new__(AudioDevice)
+        device._state = dev_state
+        output.append(device)
+
+    return output
