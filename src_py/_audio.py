@@ -87,8 +87,12 @@ class AudioSpec:
                 f"AudioSpec format must be an AudioFormat, received {type(format)}"
             )
 
+        if channels < 1 or channels > 8:
+            raise ValueError("Invalid channel count, should be between 1 and 8.")
+
         # AudioSpecs are immutable so that they can be owned by other things
-        # like AudioStreams without worrying about them getting modified underneath em.
+        # like AudioStreams without worrying about what happens if someone
+        # changes the spec externally.
         self._format = format
         self._channels = channels
         self._frequency = frequency

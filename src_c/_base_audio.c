@@ -385,19 +385,6 @@ pg_audio_get_audio_stream_data(PyObject *module, PyObject *const *args,
         return PyErr_NoMemory();
     }
 
-#if 0
-    PyObject *bytes = PyBytes_FromStringAndSize(NULL, size);
-    if (bytes == NULL) {
-        return NULL;
-    }
-
-    void *buf = PyBytes_AsString(bytes);
-    if (buf == NULL) {
-        Py_DECREF(bytes);
-        return NULL;
-    }
-#endif
-
     int bytes_read = SDL_GetAudioStreamData(stream, buf, size);
 
     if (bytes_read == -1) {
