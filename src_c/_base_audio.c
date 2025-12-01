@@ -8,6 +8,8 @@
 typedef struct {
     bool audio_initialized;
     PyObject *audio_device_type;
+    PyObject *audio_device_state_type;
+    PyObject *audio_stream_state_type;
 } audio_state;
 
 #define GET_STATE(x) (audio_state *)PyModule_GetState(x)
@@ -15,6 +17,14 @@ typedef struct {
 typedef struct {
     PyObject_HEAD SDL_AudioDeviceID devid;
 } PGAudioDeviceObject;
+
+typedef struct {
+    PyObject_HEAD SDL_AudioDeviceID devid;
+} PGAudioDeviceStateObject;
+
+typedef struct {
+    PyObject_HEAD SDL_AudioStream *stream;
+} PGAudioStreamStateObject;
 
 typedef struct {
     PyObject_HEAD
@@ -82,11 +92,44 @@ static PyType_Slot adevice_slots[] = {{Py_tp_methods, adevice_obj_methods},
                                       {Py_tp_getset, adevice_obj_getsets},
                                       {0, NULL}};
 
-static PyType_Spec adevice_spec = {.name = "AudioDevice",
-                                   .basicsize = sizeof(PGAudioDeviceObject),
-                                   .itemsize = 0,
-                                   .flags = 0,
-                                   .slots = adevice_slots};
+static PyType_Spec adevice_spec = {
+    .name = "BaseAudioDevice",
+    .basicsize = sizeof(PGAudioDeviceObject),
+    .itemsize = 0,
+    // todo apparently needs to support GC
+    // https://docs.python.org/3/c-api/typeobj.html#c.Py_TPFLAGS_HEAPTYPE
+    .flags = Py_TPFLAGS_BASETYPE,
+    .slots = adevice_slots};
+
+// ***************************************************************************
+// AUDIO.AUDIODEVICESTATE CLASS
+// ***************************************************************************
+
+static PyType_Slot adevice_state_slots[] = {{0, NULL}};
+
+static PyType_Spec adevice_state_spec = {
+    .name = "AudioDeviceState",
+    .basicsize = sizeof(PGAudioDeviceStateObject),
+    .itemsize = 0,
+    // todo apparently needs to support GC
+    // https://docs.python.org/3/c-api/typeobj.html#c.Py_TPFLAGS_HEAPTYPE
+    .flags = 0,
+    .slots = adevice_state_slots};
+
+// ***************************************************************************
+// AUDIO.AUDIOSTREAMSTATE CLASS
+// ***************************************************************************
+
+static PyType_Slot astream_state_slots[] = {{0, NULL}};
+
+static PyType_Spec astream_state_spec = {
+    .name = "AudioStreamState",
+    .basicsize = sizeof(PGAudioStreamStateObject),
+    .itemsize = 0,
+    // todo apparently needs to support GC
+    // https://docs.python.org/3/c-api/typeobj.html#c.Py_TPFLAGS_HEAPTYPE
+    .flags = 0,
+    .slots = astream_state_slots};
 
 // ***************************************************************************
 // MODULE METHODS
@@ -156,8 +199,14 @@ pg_audio_get_drivers(PyObject *module, PyObject *_null)
 static PyObject *
 pg_audio_get_playback_devices(PyObject *module, PyObject *_null)
 {
-    audio_state *state = GET_STATE(module);
-    PyTypeObject *adevice_type = (PyTypeObject *)state->audio_device_type;
+    // audio_state *state = GET_STATE(module);
+    // PyTypeObject *adevice_type = (PyTypeObject *)state->audio_device_type;
+
+    PyTypeObject *adevice_type =
+        (PyTypeObject *)PyObject_GetAttrString(module, "AudioDevice");
+    if (adevice_type == NULL) {
+        return NULL;
+    }
 
     int num_devices;
     SDL_AudioDeviceID *devices = SDL_GetAudioPlaybackDevices(&num_devices);
@@ -189,6 +238,132 @@ pg_audio_get_playback_devices(PyObject *module, PyObject *_null)
     }
 
     return device_list;
+}
+
+static PyObject *
+pg_audio_get_playback_device_states(PyObject *module, PyObject *_null)
+{
+    audio_state *state = GET_STATE(module);
+    PyTypeObject *adevice_state_type =
+        (PyTypeObject *)state->audio_device_state_type;
+
+    int num_devices;
+    SDL_AudioDeviceID *devices = SDL_GetAudioPlaybackDevices(&num_devices);
+
+    if (devices == NULL) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    PyObject *device_list = PyList_New(num_devices);
+    if (device_list == NULL) {
+        SDL_free(devices);
+        return NULL;
+    }
+    PGAudioDeviceStateObject *device;
+    for (int i = 0; i < num_devices; i++) {
+        device = (PGAudioDeviceStateObject *)adevice_state_type->tp_alloc(
+            adevice_state_type, 0);
+        if (device == NULL) {
+            SDL_free(devices);
+            Py_DECREF(device_list);
+            return NULL;
+        }
+        device->devid = devices[i];
+        if (PyList_SetItem(device_list, i, (PyObject *)device) < 0) {
+            SDL_free(devices);
+            Py_DECREF(device);
+            Py_DECREF(device_list);
+        }
+    }
+
+    return device_list;
+}
+
+static PyObject *
+pg_audio_get_audio_device_name(PyObject *module, PyObject *const *args,
+                               Py_ssize_t nargs)
+{
+    // assert nargs == 1
+    // assert type(args[0]) == AudioDeviceState
+    SDL_AudioDeviceID devid = ((PGAudioDeviceStateObject *)args[0])->devid;
+    const char *name = SDL_GetAudioDeviceName(devid);
+    if (name == NULL) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+    return PyUnicode_FromString(name);
+}
+
+static PyObject *
+pg_audio_create_audio_stream(PyObject *module, PyObject *const *args,
+                             Py_ssize_t nargs)
+{
+    // SDL_CreateAudioStream
+    //  src_format: int, src_channels: int, src_frequency: int,
+    //  dst_format: int, dst_channels: int, dst_frequency: int
+
+    audio_state *state = GET_STATE(module);
+    PyTypeObject *astream_state_type =
+        (PyTypeObject *)state->audio_stream_state_type;
+
+    SDL_AudioSpec src, dst;
+
+    src.format = PyLong_AsInt(args[0]);
+    src.channels = PyLong_AsInt(args[1]);
+    src.freq = PyLong_AsInt(args[2]);
+    dst.format = PyLong_AsInt(args[3]);
+    dst.channels = PyLong_AsInt(args[4]);
+    dst.freq = PyLong_AsInt(args[5]);
+
+    // Check that they all succeeded
+    if (src.format == -1 || src.channels == -1 || src.freq == -1 ||
+        dst.format == -1 || dst.channels == -1 || dst.freq == -1) {
+        if (PyErr_Occurred()) {
+            return NULL;
+        }
+    }
+
+    SDL_AudioStream *stream = SDL_CreateAudioStream(&src, &dst);
+    if (stream == NULL) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    PGAudioStreamStateObject *stream_state =
+        (PGAudioStreamStateObject *)astream_state_type->tp_alloc(
+            astream_state_type, 0);
+    stream_state->stream = stream;
+
+    return (PyObject *)stream_state;
+}
+
+static PyObject *
+pg_audio_put_audio_stream_data(PyObject *module, PyObject *const *args,
+                               Py_ssize_t nargs)
+{
+    // SDL_PutAudioStreamData
+    // stream_state: PGAudioStreamState, data: Buffer
+
+    SDL_AudioStream *stream = ((PGAudioStreamStateObject *)args[0])->stream;
+
+    PyObject *bytes = PyBytes_FromObject(args[1]);
+    if (bytes == NULL) {
+        return NULL;
+    }
+
+    void *buf;
+    int len;
+
+    if (PyBytes_AsStringAndSize(bytes, (char **)&buf, (Py_ssize_t *)&len) !=
+        0) {
+        Py_DECREF(bytes);
+        return NULL;
+    }
+
+    if (!SDL_PutAudioStreamData(stream, buf, len)) {
+        Py_DECREF(bytes);
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    Py_RETURN_NONE;
 }
 
 static PyObject *
@@ -237,8 +412,18 @@ static PyMethodDef audio_methods[] = {
     {"get_drivers", (PyCFunction)pg_audio_get_drivers, METH_NOARGS, "TODO"},
     {"get_playback_devices", (PyCFunction)pg_audio_get_playback_devices,
      METH_NOARGS, "TODO"},
+    {"get_playback_device_states",
+     (PyCFunction)pg_audio_get_playback_device_states, METH_NOARGS, "TODO"},
+    {"get_audio_device_name", (PyCFunction)pg_audio_get_audio_device_name,
+     METH_FASTCALL, "TODO"},
     {"get_recording_devices", (PyCFunction)pg_audio_get_recording_devices,
      METH_NOARGS, "TODO"},
+
+    {"create_audio_stream", (PyCFunction)pg_audio_create_audio_stream,
+     METH_FASTCALL, "TODO"},
+    {"put_audio_stream_data", (PyCFunction)pg_audio_put_audio_stream_data,
+     METH_FASTCALL, "TODO"},
+
     {NULL, NULL, 0, NULL}};
 
 // ***************************************************************************
@@ -260,13 +445,32 @@ exec_audio(PyObject *module)
 
     PyObject *audio_device_type =
         PyType_FromModuleAndSpec(module, &adevice_spec, NULL);
-    if (PyModule_AddObjectRef(module, "AudioDevice", audio_device_type) < 0) {
+    if (PyModule_AddObjectRef(module, "BaseAudioDevice", audio_device_type) <
+        0) {
         return -1;
     }
 
     audio_state *state = GET_STATE(module);
     state->audio_initialized = false;
     state->audio_device_type = audio_device_type;
+
+    PyObject *audio_device_state_type =
+        PyType_FromModuleAndSpec(module, &adevice_state_spec, NULL);
+    if (PyModule_AddObjectRef(module, "AudioDeviceState", audio_device_type) <
+        0) {
+        return -1;
+    }
+
+    state->audio_device_state_type = audio_device_state_type;
+
+    PyObject *audio_stream_state_type =
+        PyType_FromModuleAndSpec(module, &astream_state_spec, NULL);
+    if (PyModule_AddObjectRef(module, "AudioStreamState",
+                              audio_stream_state_type) < 0) {
+        return -1;
+    }
+
+    state->audio_stream_state_type = audio_stream_state_type;
 
     return 0;
 }

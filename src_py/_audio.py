@@ -1,13 +1,6 @@
+from typing_extensions import Buffer
 import pygame.base
 import pygame._base_audio as _base_audio
-
-
-init = _base_audio.init
-quit = _base_audio.quit
-get_current_driver = _base_audio.get_current_driver
-get_drivers = _base_audio.get_drivers
-get_playback_devices = _base_audio.get_playback_devices
-get_recording_devices = _base_audio.get_recording_devices
 
 
 class AudioFormat:
@@ -107,3 +100,75 @@ class AudioSpec:
             f"{self.__class__.__module__}.{self.__class__.__name__}"
             f"({self.format}. {self.channels}, {self.frequency})"
         )
+
+
+class AudioDevice:
+    # Will this just make it show up in the recommendations??
+    # def pause(self) -> None:
+    #    raise NotImplementedError("Only LogicalAudioDevices can be paused")
+
+    # def __repr__(self) -> str:
+    #    return f"AudioDevice with name {self.name}"
+
+    @property
+    def name(self) -> str:
+        return _base_audio.get_audio_device_name(self._state)
+
+
+class LogicalAudioDevice(AudioDevice):
+    pass
+
+
+class AudioStream:
+    def __init__(self, src_spec: AudioSpec, dst_spec: AudioSpec) -> None:
+        if not isinstance(src_spec, AudioSpec):
+            raise TypeError(
+                f"AudioStream src_spec must be an AudioSpec, received {type(src_spec)}"
+            )
+        if not isinstance(dst_spec, AudioSpec):
+            raise TypeError(
+                f"AudioStream dst_spec must be an AudioSpec, received {type(dst_spec)}"
+            )
+
+        # TODO SPECS ARE MUTABLE!!!
+        # Makes this extraordinarily prone to abuse.
+        self._src_spec = src_spec
+        self._dst_spec = dst_spec
+
+        self._state = _base_audio.create_audio_stream(
+            src_spec.format,
+            src_spec.channels,
+            src_spec.frequency,
+            dst_spec.format,
+            dst_spec.channels,
+            dst_spec.frequency,
+        )
+
+    def put_data(self, data: Buffer) -> None:
+        _base_audio.put_audio_stream_data(self._state, data)
+
+
+# Dependency inject classes into the module
+_base_audio.AudioDevice = LogicalAudioDevice
+_base_audio.LogicalAudioDevice = LogicalAudioDevice
+
+
+init = _base_audio.init
+quit = _base_audio.quit
+get_current_driver = _base_audio.get_current_driver
+get_drivers = _base_audio.get_drivers
+
+
+def get_playback_devices() -> list[AudioDevice]:
+    output = []
+
+    for dev_state in _base_audio.get_playback_device_states():
+        device = object.__new__(AudioDevice)
+        device._state = dev_state
+        output.append(device)
+
+    return output
+
+
+# get_playback_devices = _base_audio.get_playback_devices
+get_recording_devices = _base_audio.get_recording_devices
