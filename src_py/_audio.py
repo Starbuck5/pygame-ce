@@ -159,7 +159,11 @@ class AudioDevice:
 
 
 class LogicalAudioDevice(AudioDevice):
-    pass
+    def pause(self) -> None:
+        _base_audio.pause_audio_device(self._state)
+
+    def resume(self) -> None:
+        _base_audio.resume_audio_device(self._state)
 
 
 class AudioStream:
@@ -184,6 +188,14 @@ class AudioStream:
             dst_spec.channels,
             dst_spec.frequency,
         )
+
+    @property
+    def num_available_bytes(self) -> int:
+        return _base_audio.get_audio_stream_available(self._state)
+
+    @property
+    def num_queued_bytes(self) -> int:
+        return _base_audio.get_audio_stream_queued(self._state)
 
     def put_data(self, data: Buffer) -> None:
         _base_audio.put_audio_stream_data(self._state, data)

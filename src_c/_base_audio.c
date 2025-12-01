@@ -100,6 +100,34 @@ pg_audio_bind_audio_stream(PyObject *module, PyObject *const *args,
     Py_RETURN_NONE;
 }
 
+static PyObject *
+pg_audio_pause_audio_device(PyObject *module, PyObject *arg)
+{
+    // SDL_PauseAudioDevice
+    // arg: PGAudioDeviceStateObject
+
+    SDL_AudioDeviceID devid = ((PGAudioDeviceStateObject *)arg)->devid;
+    if (!SDL_PauseAudioDevice(devid)) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+pg_audio_resume_audio_device(PyObject *module, PyObject *arg)
+{
+    // SDL_ResumeAudioDevice
+    // arg: PGAudioDeviceStateObject
+
+    SDL_AudioDeviceID devid = ((PGAudioDeviceStateObject *)arg)->devid;
+    if (!SDL_ResumeAudioDevice(devid)) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    Py_RETURN_NONE;
+}
+
 // SDL_AudioDeviceID SDL_OpenAudioDevice(SDL_AudioDeviceID devid, const
 // SDL_AudioSpec *spec);
 
@@ -205,6 +233,38 @@ pg_audio_create_audio_stream(PyObject *module, PyObject *const *args,
     stream_state->stream = stream;
 
     return (PyObject *)stream_state;
+}
+
+static PyObject *
+pg_audio_get_audio_stream_available(PyObject *module, PyObject *arg)
+{
+    // SDL_GetAudioStreamAvailable
+    // arg: PGAudioStreamStateObject
+
+    SDL_AudioStream *stream = ((PGAudioStreamStateObject *)arg)->stream;
+
+    int available = SDL_GetAudioStreamAvailable(stream);
+    if (available == -1) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    return PyLong_FromLong(available);
+}
+
+static PyObject *
+pg_audio_get_audio_stream_queued(PyObject *module, PyObject *arg)
+{
+    // SDL_GetAudioStreamQueued
+    // arg: PGAudioStreamStateObject
+
+    SDL_AudioStream *stream = ((PGAudioStreamStateObject *)arg)->stream;
+
+    int queued = SDL_GetAudioStreamQueued(stream);
+    if (queued == -1) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    return PyLong_FromLong(queued);
 }
 
 static PyObject *
@@ -438,6 +498,10 @@ static PyMethodDef audio_methods[] = {
      METH_FASTCALL, NULL},
     {"open_audio_device", (PyCFunction)pg_audio_open_audio_device,
      METH_FASTCALL, NULL},
+    {"pause_audio_device", (PyCFunction)pg_audio_pause_audio_device, METH_O,
+     NULL},
+    {"resume_audio_device", (PyCFunction)pg_audio_resume_audio_device, METH_O,
+     NULL},
 
     // format utility (the one)
     {"get_silence_value_for_format",
@@ -445,11 +509,15 @@ static PyMethodDef audio_methods[] = {
 
     // AudioStream utilities
     {"create_audio_stream", (PyCFunction)pg_audio_create_audio_stream,
-     METH_FASTCALL, "TODO"},
+     METH_FASTCALL, NULL},
+    {"get_audio_stream_available",
+     (PyCFunction)pg_audio_get_audio_stream_available, METH_O, NULL},
+    {"get_audio_stream_queued", (PyCFunction)pg_audio_get_audio_stream_queued,
+     METH_O, NULL},
     {"put_audio_stream_data", (PyCFunction)pg_audio_put_audio_stream_data,
-     METH_FASTCALL, "TODO"},
+     METH_FASTCALL, NULL},
     {"get_audio_stream_data", (PyCFunction)pg_audio_get_audio_stream_data,
-     METH_FASTCALL, "TODO"},
+     METH_FASTCALL, NULL},
 
     {NULL, NULL, 0, NULL}};
 
@@ -475,8 +543,8 @@ exec_audio(PyObject *module)
 
     PyObject *audio_device_state_type =
         PyType_FromModuleAndSpec(module, &adevice_state_spec, NULL);
-    if (PyModule_AddObjectRef(module, "AudioDeviceState", audio_device_state_type) <
-        0) {
+    if (PyModule_AddObjectRef(module, "AudioDeviceState",
+                              audio_device_state_type) < 0) {
         return -1;
     }
 
