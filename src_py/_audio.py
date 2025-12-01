@@ -223,6 +223,7 @@ class AudioStream:
 
     @gain.setter
     def gain(self, value: float) -> None:
+        # TODO: bounds check
         _base_audio.set_audio_stream_gain(self._state, value)
 
     @property
@@ -231,7 +232,14 @@ class AudioStream:
 
     @frequency_ratio.setter
     def frequency_ratio(self, value: float) -> None:
+        # TODO bounds check?
         _base_audio.set_audio_stream_frequency_ratio(self._state, value)
+
+    def lock(self) -> None:
+        _base_audio.lock_audio_stream(self._state)
+
+    def unlock(self) -> None:
+        _base_audio.unlock_audio_stream(self._state)
 
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__}({self._src_spec}, {self._dst_spec})>"

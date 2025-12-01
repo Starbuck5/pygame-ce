@@ -438,6 +438,34 @@ pg_audio_set_audio_stream_frequency_ratio(PyObject *module,
     Py_RETURN_NONE;
 }
 
+static PyObject *
+pg_audio_lock_audio_stream(PyObject *module, PyObject *arg)
+{
+    // SDL_LockAudioStream
+    // arg: PGAudioStreamStateObject
+
+    SDL_AudioStream *stream = ((PGAudioStreamStateObject *)arg)->stream;
+    if (!SDL_LockAudioStream(stream)) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+pg_audio_unlock_audio_stream(PyObject *module, PyObject *arg)
+{
+    // SDL_UnlockAudioStream
+    // arg: PGAudioStreamStateObject
+
+    SDL_AudioStream *stream = ((PGAudioStreamStateObject *)arg)->stream;
+    if (!SDL_UnlockAudioStream(stream)) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    Py_RETURN_NONE;
+}
+
 // ***************************************************************************
 // MODULE METHODS
 // ***************************************************************************
@@ -635,6 +663,10 @@ static PyMethodDef audio_methods[] = {
      (PyCFunction)pg_audio_get_audio_stream_frequency_ratio, METH_O, NULL},
     {"set_audio_stream_frequency_ratio",
      (PyCFunction)pg_audio_set_audio_stream_frequency_ratio, METH_FASTCALL,
+     NULL},
+    {"lock_audio_stream", (PyCFunction)pg_audio_lock_audio_stream, METH_O,
+     NULL},
+    {"unlock_audio_stream", (PyCFunction)pg_audio_unlock_audio_stream, METH_O,
      NULL},
 
     {NULL, NULL, 0, NULL}};
