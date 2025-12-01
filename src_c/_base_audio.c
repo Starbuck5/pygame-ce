@@ -367,6 +367,55 @@ pg_audio_put_audio_stream_data(PyObject *module, PyObject *const *args,
 }
 
 static PyObject *
+pg_audio_get_audio_stream_data(PyObject *module, PyObject *const *args,
+                               Py_ssize_t nargs)
+{
+    // SDL_GetAudioStreamData
+    // stream_state: PGAudioStreamState, size: int
+
+    SDL_AudioStream *stream = ((PGAudioStreamStateObject *)args[0])->stream;
+
+    int size = PyLong_AsInt(args[1]);
+    if (size == -1 && PyErr_Occurred()) {
+        return NULL;
+    }
+
+    void *buf = malloc(size);
+    if (buf == NULL) {
+        return PyErr_NoMemory();
+    }
+
+#if 0
+    PyObject *bytes = PyBytes_FromStringAndSize(NULL, size);
+    if (bytes == NULL) {
+        return NULL;
+    }
+
+    void *buf = PyBytes_AsString(bytes);
+    if (buf == NULL) {
+        Py_DECREF(bytes);
+        return NULL;
+    }
+#endif
+
+    int bytes_read = SDL_GetAudioStreamData(stream, buf, size);
+
+    if (bytes_read == -1) {
+        free(buf);
+        //Py_DECREF(bytes);
+        return RAISE(pgExc_SDLError, SDL_GetError());        
+    }
+
+    PyObject *bytes = PyBytes_FromStringAndSize(buf, bytes_read);
+    free(buf);
+    if (bytes == NULL) {
+        return NULL;
+    }
+
+    return bytes;
+}
+
+static PyObject *
 pg_audio_get_recording_devices(PyObject *module, PyObject *_null)
 {
     audio_state *state = GET_STATE(module);
@@ -404,6 +453,24 @@ pg_audio_get_recording_devices(PyObject *module, PyObject *_null)
     return device_list;
 }
 
+static PyObject *
+pg_audio_get_silence_value_for_format(PyObject *module, PyObject *const *args,
+                                      Py_ssize_t nargs)
+{
+    // SDL_GetSilenceValueForFormat
+    // format: int
+
+    int format_num = PyLong_AsInt(args[0]);
+    if (format_num == -1 && PyErr_Occurred()) {
+        return NULL;
+    }
+
+    int silence_value =
+        SDL_GetSilenceValueForFormat((SDL_AudioFormat)format_num);
+
+    return PyBytes_FromFormat("%c", silence_value);
+}
+
 static PyMethodDef audio_methods[] = {
     {"init", (PyCFunction)pg_audio_init, METH_NOARGS, "TODO"},
     {"quit", (PyCFunction)pg_audio_quit, METH_NOARGS, "TODO"},
@@ -419,9 +486,16 @@ static PyMethodDef audio_methods[] = {
     {"get_recording_devices", (PyCFunction)pg_audio_get_recording_devices,
      METH_NOARGS, "TODO"},
 
+    // format utility (the one)
+    {"get_silence_value_for_format",
+     (PyCFunction)pg_audio_get_silence_value_for_format, METH_FASTCALL, NULL},
+
+    // AudioStream utilities
     {"create_audio_stream", (PyCFunction)pg_audio_create_audio_stream,
      METH_FASTCALL, "TODO"},
     {"put_audio_stream_data", (PyCFunction)pg_audio_put_audio_stream_data,
+     METH_FASTCALL, "TODO"},
+    {"get_audio_stream_data", (PyCFunction)pg_audio_get_audio_stream_data,
      METH_FASTCALL, "TODO"},
 
     {NULL, NULL, 0, NULL}};

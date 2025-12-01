@@ -50,7 +50,7 @@ class AudioFormat:
 
     @property
     def silence_value(self) -> int:
-        raise NotImplementedError("SDL_GetSilenceValueForFormat")
+        return _base_audio.get_silence_value_for_format(self._value)
 
     def __index__(self) -> int:
         """Returns the actual constant value needed for calls to SDL"""
@@ -87,18 +87,32 @@ class AudioSpec:
                 f"AudioSpec format must be an AudioFormat, received {type(format)}"
             )
 
-        self.format = format
-        self.channels = channels
-        self.frequency = frequency
+        # AudioSpecs are immutable so that they can be owned by other things
+        # like AudioStreams without worrying about them getting modified underneath em.
+        self._format = format
+        self._channels = channels
+        self._frequency = frequency
+
+    @property
+    def format(self) -> AudioFormat:
+        return self._format
+
+    @property
+    def channels(self) -> int:
+        return self._channels
+
+    @property
+    def frequency(self) -> int:
+        return self._frequency
 
     @property
     def framesize(self) -> int:
-        return self.format.bytesize * self.channels
+        return self._format.bytesize * self.channels
 
     def __repr__(self) -> str:
         return (
             f"{self.__class__.__module__}.{self.__class__.__name__}"
-            f"({self.format}. {self.channels}, {self.frequency})"
+            f"({self._format}. {self._channels}, {self._frequency})"
         )
 
 
@@ -130,8 +144,6 @@ class AudioStream:
                 f"AudioStream dst_spec must be an AudioSpec, received {type(dst_spec)}"
             )
 
-        # TODO SPECS ARE MUTABLE!!!
-        # Makes this extraordinarily prone to abuse.
         self._src_spec = src_spec
         self._dst_spec = dst_spec
 
@@ -146,6 +158,17 @@ class AudioStream:
 
     def put_data(self, data: Buffer) -> None:
         _base_audio.put_audio_stream_data(self._state, data)
+
+    def get_data(self, size: int) -> bytes:
+        return _base_audio.get_audio_stream_data(self._state, size)
+    
+    @property
+    def src_spec(self) -> AudioSpec:
+        return self._src_spec
+    
+    @property
+    def dst_spec(self) -> AudioSpec:
+        return self._dst_spec
 
 
 # Dependency inject classes into the module
