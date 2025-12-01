@@ -1,5 +1,4 @@
 from collections.abc import Callable
-from dataclasses import dataclass
 from typing import TypeVar
 
 from pygame.typing import FileLike
@@ -72,9 +71,12 @@ class AudioSpec:
     def __repr__(self) -> str: ...
 
 class AudioDevice:
-    def open(self, spec: AudioSpec | None) -> LogicalAudioDevice: ...
+    def open(self, spec: AudioSpec | None = None) -> LogicalAudioDevice: ...
     def open_stream(
-        self, spec: AudioSpec | None, callback: stream_callback, userdata: T
+        self,
+        spec: AudioSpec | None,
+        callback: stream_callback | None,
+        userdata: T | None,
     ) -> AudioStream: ...
     def bind(self, *args: AudioStream) -> None: ...
     def unbind(self, *args: AudioStream) -> None: ...

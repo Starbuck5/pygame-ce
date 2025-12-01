@@ -128,6 +128,31 @@ class AudioDevice:
     # def __repr__(self) -> str:
     #    return f"AudioDevice with name {self.name}"
 
+    def open(self, spec: AudioSpec | None = None) -> "LogicalAudioDevice":
+        if spec is None:
+            dev_state = _base_audio.open_audio_device(self._state)
+        elif isinstance(spec, AudioSpec):
+            dev_state = _base_audio.open_audio_device(
+                self._state, spec.format, spec.channels, spec.frequency
+            )
+        else:
+            raise TypeError(
+                f"AudioDevice open 'spec' argument must be an AudioSpec or None, received {type(spec)}"
+            )
+
+        device = object.__new__(LogicalAudioDevice)
+        device._state = dev_state
+        return device
+
+    def bind(self, *args: "AudioStream") -> None:
+        for stream in args:
+            if not isinstance(stream, AudioStream):
+                raise TypeError(
+                    f"Bind arguments must be AudioStreams, received {type(stream)}"
+                )
+
+            _base_audio.bind_audio_stream(self._state, stream._state)
+
     @property
     def name(self) -> str:
         return _base_audio.get_audio_device_name(self._state)
@@ -165,11 +190,11 @@ class AudioStream:
 
     def get_data(self, size: int) -> bytes:
         return _base_audio.get_audio_stream_data(self._state, size)
-    
+
     @property
     def src_spec(self) -> AudioSpec:
         return self._src_spec
-    
+
     @property
     def dst_spec(self) -> AudioSpec:
         return self._dst_spec
