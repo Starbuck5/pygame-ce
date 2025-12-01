@@ -115,8 +115,8 @@ class AudioSpec:
 
     def __repr__(self) -> str:
         return (
-            f"{self.__class__.__module__}.{self.__class__.__name__}"
-            f"({self._format}. {self._channels}, {self._frequency})"
+            self.__class__.__name__
+            + f"({self._format}, {self._channels}, {self._frequency})"
         )
 
 
@@ -189,6 +189,12 @@ class AudioStream:
             dst_spec.frequency,
         )
 
+    def clear(self) -> None:
+        _base_audio.clear_audio_stream(self._state)
+
+    def flush(self) -> None:
+        _base_audio.flush_audio_stream(self._state)
+
     @property
     def num_available_bytes(self) -> int:
         return _base_audio.get_audio_stream_available(self._state)
@@ -210,6 +216,9 @@ class AudioStream:
     @property
     def dst_spec(self) -> AudioSpec:
         return self._dst_spec
+
+    def __repr__(self) -> str:
+        return f"<{self.__class__.__name__}({self._src_spec}, {self._dst_spec})>"
 
 
 # Dependency inject classes into the module

@@ -236,6 +236,36 @@ pg_audio_create_audio_stream(PyObject *module, PyObject *const *args,
 }
 
 static PyObject *
+pg_audio_clear_audio_stream(PyObject *module, PyObject *arg)
+{
+    // SDL_ClearAudioStream
+    // arg: PGAudioStreamStateObject
+
+    SDL_AudioStream *stream = ((PGAudioStreamStateObject *)arg)->stream;
+
+    if (!SDL_ClearAudioStream(stream)) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+pg_audio_flush_audio_stream(PyObject *module, PyObject *arg)
+{
+    // SDL_FlushAudioStream
+    // arg: PGAudioStreamStateObject
+
+    SDL_AudioStream *stream = ((PGAudioStreamStateObject *)arg)->stream;
+
+    if (!SDL_FlushAudioStream(stream)) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    Py_RETURN_NONE;
+}
+
+static PyObject *
 pg_audio_get_audio_stream_available(PyObject *module, PyObject *arg)
 {
     // SDL_GetAudioStreamAvailable
@@ -510,6 +540,10 @@ static PyMethodDef audio_methods[] = {
     // AudioStream utilities
     {"create_audio_stream", (PyCFunction)pg_audio_create_audio_stream,
      METH_FASTCALL, NULL},
+    {"clear_audio_stream", (PyCFunction)pg_audio_clear_audio_stream, METH_O,
+     NULL},
+    {"flush_audio_stream", (PyCFunction)pg_audio_flush_audio_stream, METH_O,
+     NULL},
     {"get_audio_stream_available",
      (PyCFunction)pg_audio_get_audio_stream_available, METH_O, NULL},
     {"get_audio_stream_queued", (PyCFunction)pg_audio_get_audio_stream_queued,
