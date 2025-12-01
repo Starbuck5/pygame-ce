@@ -217,6 +217,22 @@ class AudioStream:
     def dst_spec(self) -> AudioSpec:
         return self._dst_spec
 
+    @property
+    def gain(self) -> float:
+        return _base_audio.get_audio_stream_gain(self._state)
+
+    @gain.setter
+    def gain(self, value: float) -> None:
+        _base_audio.set_audio_stream_gain(self._state, value)
+
+    @property
+    def frequency_ratio(self) -> float:
+        return _base_audio.get_audio_stream_frequency_ratio(self._state)
+
+    @frequency_ratio.setter
+    def frequency_ratio(self, value: float) -> None:
+        _base_audio.set_audio_stream_frequency_ratio(self._state, value)
+
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__}({self._src_spec}, {self._dst_spec})>"
 

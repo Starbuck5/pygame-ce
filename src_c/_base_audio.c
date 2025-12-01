@@ -363,6 +363,81 @@ pg_audio_get_audio_stream_data(PyObject *module, PyObject *const *args,
     return bytes;
 }
 
+static PyObject *
+pg_audio_get_audio_stream_gain(PyObject *module, PyObject *arg)
+{
+    // SDL_GetAudioStreamGain
+    // arg: PGAudioStreamStateObject
+
+    SDL_AudioStream *stream = ((PGAudioStreamStateObject *)arg)->stream;
+    float gain = SDL_GetAudioStreamGain(stream);
+
+    if (gain == -1.0f) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    return PyFloat_FromDouble((double)gain);
+}
+
+static PyObject *
+pg_audio_set_audio_stream_gain(PyObject *module, PyObject *const *args,
+                               Py_ssize_t nargs)
+{
+    // SDL_SetAudioStreamGain
+    // arg0: PGAudioStreamStateObject, gain: float
+
+    SDL_AudioStream *stream = ((PGAudioStreamStateObject *)args[0])->stream;
+
+    double gain = PyFloat_AsDouble(args[1]);
+    if (gain == -1.0 && PyErr_Occurred()) {
+        return NULL;
+    }
+
+    if (!SDL_SetAudioStreamGain(stream, (float)gain)) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+pg_audio_get_audio_stream_frequency_ratio(PyObject *module, PyObject *arg)
+{
+    // SDL_GetAudioStreamFrequencyRatio
+    // arg: PGAudioStreamStateObject
+
+    SDL_AudioStream *stream = ((PGAudioStreamStateObject *)arg)->stream;
+    float frequency_ratio = SDL_GetAudioStreamFrequencyRatio(stream);
+
+    if (frequency_ratio == 0.0f) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    return PyFloat_FromDouble((double)frequency_ratio);
+}
+
+static PyObject *
+pg_audio_set_audio_stream_frequency_ratio(PyObject *module,
+                                          PyObject *const *args,
+                                          Py_ssize_t nargs)
+{
+    // SDL_SetAudioStreamFrequencyRatio
+    // arg0: PGAudioStreamStateObject, frequency_ratio: float
+
+    SDL_AudioStream *stream = ((PGAudioStreamStateObject *)args[0])->stream;
+
+    double frequency_ratio = PyFloat_AsDouble(args[1]);
+    if (frequency_ratio == -1.0 && PyErr_Occurred()) {
+        return NULL;
+    }
+
+    if (!SDL_SetAudioStreamFrequencyRatio(stream, (float)frequency_ratio)) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    Py_RETURN_NONE;
+}
+
 // ***************************************************************************
 // MODULE METHODS
 // ***************************************************************************
@@ -552,6 +627,15 @@ static PyMethodDef audio_methods[] = {
      METH_FASTCALL, NULL},
     {"get_audio_stream_data", (PyCFunction)pg_audio_get_audio_stream_data,
      METH_FASTCALL, NULL},
+    {"get_audio_stream_gain", (PyCFunction)pg_audio_get_audio_stream_gain,
+     METH_O, NULL},
+    {"set_audio_stream_gain", (PyCFunction)pg_audio_set_audio_stream_gain,
+     METH_FASTCALL, NULL},
+    {"get_audio_stream_frequency_ratio",
+     (PyCFunction)pg_audio_get_audio_stream_frequency_ratio, METH_O, NULL},
+    {"set_audio_stream_frequency_ratio",
+     (PyCFunction)pg_audio_set_audio_stream_frequency_ratio, METH_FASTCALL,
+     NULL},
 
     {NULL, NULL, 0, NULL}};
 
