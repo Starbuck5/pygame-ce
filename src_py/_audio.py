@@ -154,6 +154,10 @@ class AudioDevice:
             _base_audio.bind_audio_stream(self._state, stream._state)
 
     @property
+    def is_playback(self) -> bool:
+        return _base_audio.is_audio_device_playback(self._state)
+
+    @property
     def name(self) -> str:
         return _base_audio.get_audio_device_name(self._state)
 

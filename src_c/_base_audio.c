@@ -70,6 +70,19 @@ static PyType_Spec adevice_state_spec = {
     .slots = adevice_state_slots};
 
 static PyObject *
+pg_audio_is_audio_device_playback(PyObject *module, PyObject *arg)
+{
+    // SDL_IsAudioDevicePlayback
+    // arg: PGAudioDeviceStateObject
+
+    SDL_AudioDeviceID devid = ((PGAudioDeviceStateObject *)arg)->devid;
+    if (SDL_IsAudioDevicePlayback(devid)) {
+        Py_RETURN_TRUE;
+    }
+    Py_RETURN_FALSE;
+}
+
+static PyObject *
 pg_audio_get_audio_device_name(PyObject *module, PyObject *const *args,
                                Py_ssize_t nargs)
 {
@@ -127,9 +140,6 @@ pg_audio_resume_audio_device(PyObject *module, PyObject *arg)
 
     Py_RETURN_NONE;
 }
-
-// SDL_AudioDeviceID SDL_OpenAudioDevice(SDL_AudioDeviceID devid, const
-// SDL_AudioSpec *spec);
 
 static PyObject *
 pg_audio_open_audio_device(PyObject *module, PyObject *const *args,
@@ -625,6 +635,8 @@ static PyMethodDef audio_methods[] = {
      (PyCFunction)pg_audio_get_recording_device_states, METH_NOARGS, NULL},
 
     // AudioDevice utilities
+    {"is_audio_device_playback",
+     (PyCFunction)pg_audio_is_audio_device_playback, METH_O, NULL},
     {"get_audio_device_name", (PyCFunction)pg_audio_get_audio_device_name,
      METH_FASTCALL, NULL},
     {"bind_audio_stream", (PyCFunction)pg_audio_bind_audio_stream,
