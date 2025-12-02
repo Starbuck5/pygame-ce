@@ -144,15 +144,6 @@ class AudioDevice:
         device._state = dev_state
         return device
 
-    def bind(self, *args: "AudioStream") -> None:
-        for stream in args:
-            if not isinstance(stream, AudioStream):
-                raise TypeError(
-                    f"Bind arguments must be AudioStreams, received {type(stream)}"
-                )
-
-            _base_audio.bind_audio_stream(self._state, stream._state)
-
     @property
     def is_playback(self) -> bool:
         return _base_audio.is_audio_device_playback(self._state)
@@ -163,11 +154,32 @@ class AudioDevice:
 
 
 class LogicalAudioDevice(AudioDevice):
+    def bind(self, *args: "AudioStream") -> None:
+        for stream in args:
+            if not isinstance(stream, AudioStream):
+                raise TypeError(
+                    f"Bind arguments must be AudioStreams, received {type(stream)}"
+                )
+
+            _base_audio.bind_audio_stream(self._state, stream._state)
+
     def pause(self) -> None:
         _base_audio.pause_audio_device(self._state)
 
     def resume(self) -> None:
         _base_audio.resume_audio_device(self._state)
+
+    @property
+    def paused(self) -> bool:
+        return _base_audio.audio_device_paused(self._state)
+
+    @property
+    def gain(self) -> float:
+        return _base_audio.get_audio_device_gain(self._state)
+    
+    @gain.setter
+    def gain(self, value: float) -> None:
+        _base_audio.set_audio_device_gain(self._state, value)
 
 
 class AudioStream:

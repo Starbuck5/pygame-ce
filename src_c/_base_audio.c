@@ -114,6 +114,17 @@ pg_audio_bind_audio_stream(PyObject *module, PyObject *const *args,
 }
 
 static PyObject *
+pg_audio_unbind_audio_stream(PyObject *module, PyObject *arg)
+{
+    // SDL_UnbindAudioStream
+    // arg: PGAudioStreamStateObject
+
+    SDL_AudioStream *stream = ((PGAudioStreamStateObject *)arg)->stream;
+    SDL_UnbindAudioStream(stream);
+    Py_RETURN_NONE;
+}
+
+static PyObject *
 pg_audio_pause_audio_device(PyObject *module, PyObject *arg)
 {
     // SDL_PauseAudioDevice
@@ -135,6 +146,54 @@ pg_audio_resume_audio_device(PyObject *module, PyObject *arg)
 
     SDL_AudioDeviceID devid = ((PGAudioDeviceStateObject *)arg)->devid;
     if (!SDL_ResumeAudioDevice(devid)) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+pg_audio_audio_device_paused(PyObject *module, PyObject *arg)
+{
+    // SDL_AudioDevicePaused
+    // arg: PGAudioDeviceStateObject
+
+    SDL_AudioDeviceID devid = ((PGAudioDeviceStateObject *)arg)->devid;
+    if (SDL_AudioDevicePaused(devid)) {
+        Py_RETURN_TRUE;
+    }
+    Py_RETURN_FALSE;
+}
+
+static PyObject *
+pg_audio_get_audio_device_gain(PyObject *module, PyObject *arg)
+{
+    // SDL_GetAudioDeviceGain
+    // arg: PGAudioDeviceStateObject
+
+    SDL_AudioDeviceID devid = ((PGAudioDeviceStateObject *)arg)->devid;
+    float gain = SDL_GetAudioDeviceGain(devid);
+    if (gain == -1.0f) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    return PyFloat_FromDouble((double)gain);
+}
+
+static PyObject *
+pg_audio_set_audio_device_gain(PyObject *module, PyObject *const *args,
+                               Py_ssize_t nargs)
+{
+    // SDL_SetAudioDeviceGain
+    // arg0: PGAudioDeviceStateObject, gain: float
+
+    SDL_AudioDeviceID devid = ((PGAudioDeviceStateObject *)args[0])->devid;
+    double gain = PyFloat_AsDouble(args[1]);
+    if (gain == -1.0 && PyErr_Occurred()) {
+        return NULL;
+    }
+
+    if (!SDL_SetAudioDeviceGain(devid, (float)gain)) {
         return RAISE(pgExc_SDLError, SDL_GetError());
     }
 
@@ -641,12 +700,20 @@ static PyMethodDef audio_methods[] = {
      METH_FASTCALL, NULL},
     {"bind_audio_stream", (PyCFunction)pg_audio_bind_audio_stream,
      METH_FASTCALL, NULL},
+    {"unbind_audio_stream", (PyCFunction)pg_audio_unbind_audio_stream, METH_O,
+     NULL},
     {"open_audio_device", (PyCFunction)pg_audio_open_audio_device,
      METH_FASTCALL, NULL},
     {"pause_audio_device", (PyCFunction)pg_audio_pause_audio_device, METH_O,
      NULL},
     {"resume_audio_device", (PyCFunction)pg_audio_resume_audio_device, METH_O,
      NULL},
+    {"audio_device_paused", (PyCFunction)pg_audio_audio_device_paused, METH_O,
+     NULL},
+    {"get_audio_device_gain", (PyCFunction)pg_audio_get_audio_device_gain,
+     METH_O, NULL},
+    {"set_audio_device_gain", (PyCFunction)pg_audio_set_audio_device_gain,
+     METH_FASTCALL, NULL},
 
     // format utility (the one)
     {"get_silence_value_for_format",
