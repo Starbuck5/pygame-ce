@@ -159,15 +159,6 @@ class AudioDevice:
 
 
 class LogicalAudioDevice(AudioDevice):
-    def bind(self, *args: "AudioStream") -> None:
-        for stream in args:
-            if not isinstance(stream, AudioStream):
-                raise TypeError(
-                    f"Bind arguments must be AudioStreams, received {type(stream)}"
-                )
-
-            _base_audio.bind_audio_stream(self._state, stream._state)
-
     def pause(self) -> None:
         _base_audio.pause_audio_device(self._state)
 
@@ -209,6 +200,17 @@ class AudioStream:
             dst_spec.channels,
             dst_spec.frequency,
         )
+
+    def bind(self, device: LogicalAudioDevice) -> None:
+        if not isinstance(device, LogicalAudioDevice):
+            raise TypeError(
+                f"AudioStream bind argument must be LogicalAudioDevice, received {type(device)}"
+            )
+
+        _base_audio.bind_audio_stream(device._state, self._state)
+
+    def unbind(self) -> None:
+        _base_audio.unbind_audio_stream(self._state)
 
     def clear(self) -> None:
         _base_audio.clear_audio_stream(self._state)

@@ -103,34 +103,6 @@ pg_audio_get_audio_device_channel_map(PyObject *module, PyObject *arg)
 }
 
 static PyObject *
-pg_audio_bind_audio_stream(PyObject *module, PyObject *const *args,
-                           Py_ssize_t nargs)
-{
-    // SDL_BindAudioStream
-    // arg0: PGAudioDeviceStateObject, arg1: PGAudioStreamStateObject
-
-    SDL_AudioDeviceID devid = ((PGAudioDeviceStateObject *)args[0])->devid;
-    SDL_AudioStream *stream = ((PGAudioStreamStateObject *)args[1])->stream;
-
-    if (!SDL_BindAudioStream(devid, stream)) {
-        return RAISE(pgExc_SDLError, SDL_GetError());
-    }
-
-    Py_RETURN_NONE;
-}
-
-static PyObject *
-pg_audio_unbind_audio_stream(PyObject *module, PyObject *arg)
-{
-    // SDL_UnbindAudioStream
-    // arg: PGAudioStreamStateObject
-
-    SDL_AudioStream *stream = ((PGAudioStreamStateObject *)arg)->stream;
-    SDL_UnbindAudioStream(stream);
-    Py_RETURN_NONE;
-}
-
-static PyObject *
 pg_audio_pause_audio_device(PyObject *module, PyObject *arg)
 {
     // SDL_PauseAudioDevice
@@ -308,6 +280,34 @@ pg_audio_create_audio_stream(PyObject *module, PyObject *const *args,
     stream_state->stream = stream;
 
     return (PyObject *)stream_state;
+}
+
+static PyObject *
+pg_audio_bind_audio_stream(PyObject *module, PyObject *const *args,
+                           Py_ssize_t nargs)
+{
+    // SDL_BindAudioStream
+    // arg0: PGAudioDeviceStateObject, arg1: PGAudioStreamStateObject
+
+    SDL_AudioDeviceID devid = ((PGAudioDeviceStateObject *)args[0])->devid;
+    SDL_AudioStream *stream = ((PGAudioStreamStateObject *)args[1])->stream;
+
+    if (!SDL_BindAudioStream(devid, stream)) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+pg_audio_unbind_audio_stream(PyObject *module, PyObject *arg)
+{
+    // SDL_UnbindAudioStream
+    // arg: PGAudioStreamStateObject
+
+    SDL_AudioStream *stream = ((PGAudioStreamStateObject *)arg)->stream;
+    SDL_UnbindAudioStream(stream);
+    Py_RETURN_NONE;
 }
 
 static PyObject *
@@ -743,10 +743,6 @@ static PyMethodDef audio_methods[] = {
      METH_FASTCALL, NULL},
     {"get_audio_device_channel_map",
      (PyCFunction)pg_audio_get_audio_device_channel_map, METH_O, NULL},
-    {"bind_audio_stream", (PyCFunction)pg_audio_bind_audio_stream,
-     METH_FASTCALL, NULL},
-    {"unbind_audio_stream", (PyCFunction)pg_audio_unbind_audio_stream, METH_O,
-     NULL},
     {"open_audio_device", (PyCFunction)pg_audio_open_audio_device,
      METH_FASTCALL, NULL},
     {"pause_audio_device", (PyCFunction)pg_audio_pause_audio_device, METH_O,
@@ -763,6 +759,10 @@ static PyMethodDef audio_methods[] = {
     // AudioStream utilities
     {"create_audio_stream", (PyCFunction)pg_audio_create_audio_stream,
      METH_FASTCALL, NULL},
+    {"bind_audio_stream", (PyCFunction)pg_audio_bind_audio_stream,
+     METH_FASTCALL, NULL},
+    {"unbind_audio_stream", (PyCFunction)pg_audio_unbind_audio_stream, METH_O,
+     NULL},
     {"clear_audio_stream", (PyCFunction)pg_audio_clear_audio_stream, METH_O,
      NULL},
     {"flush_audio_stream", (PyCFunction)pg_audio_flush_audio_stream, METH_O,
