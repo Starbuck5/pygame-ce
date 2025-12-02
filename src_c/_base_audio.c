@@ -26,34 +26,6 @@ typedef struct {
         return RAISE(pgExc_SDLError, "audio not initialized"); \
     }
 
-#if 0
-static PyObject *
-pg_adevice_obj_get_channel_map(PGAudioDeviceObject *self, PyObject *_null)
-{
-    int count;
-
-    int *channel_map = SDL_GetAudioDeviceChannelMap(self->devid, &count);
-    if (channel_map == NULL) {
-        Py_RETURN_NONE;
-    }
-
-    PyObject *channel_map_list = PyList_New(count);
-    PyObject *item;
-    for (int i = 0; i < count; i++) {
-        item = PyLong_FromLong(channel_map[i]);
-        if (item == NULL) {
-            SDL_free(channel_map);
-            Py_DECREF(channel_map_list);
-            return NULL;
-        }
-        PyList_SetItem(channel_map_list, i, item);
-    }
-
-    SDL_free(channel_map);
-    return channel_map_list;
-}
-#endif
-
 // ***************************************************************************
 // AUDIO.AUDIODEVICE CLASS
 // ***************************************************************************
@@ -94,6 +66,40 @@ pg_audio_get_audio_device_name(PyObject *module, PyObject *const *args,
         return RAISE(pgExc_SDLError, SDL_GetError());
     }
     return PyUnicode_FromString(name);
+}
+
+static PyObject *
+pg_audio_get_audio_device_channel_map(PyObject *module, PyObject *arg)
+{
+    // SDL_GetAudioDeviceChannelMap
+    // arg: PGAudioDeviceStateObject
+
+    SDL_AudioDeviceID devid = ((PGAudioDeviceStateObject *)arg)->devid;
+
+    int count;
+    int *channel_map = SDL_GetAudioDeviceChannelMap(devid, &count);
+    if (channel_map == NULL) {
+        Py_RETURN_NONE;
+    }
+
+    PyObject *channel_map_list = PyList_New(count);
+    PyObject *item;
+    for (int i = 0; i < count; i++) {
+        item = PyLong_FromLong(channel_map[i]);
+        if (item == NULL) {
+            SDL_free(channel_map);
+            Py_DECREF(channel_map_list);
+            return NULL;
+        }
+        if (PyList_SetItem(channel_map_list, i, item) < 0) {
+            SDL_free(channel_map);
+            Py_DECREF(item);
+            Py_DECREF(channel_map_list);
+        }
+    }
+
+    SDL_free(channel_map);
+    return channel_map_list;
 }
 
 static PyObject *
@@ -698,6 +704,8 @@ static PyMethodDef audio_methods[] = {
      (PyCFunction)pg_audio_is_audio_device_playback, METH_O, NULL},
     {"get_audio_device_name", (PyCFunction)pg_audio_get_audio_device_name,
      METH_FASTCALL, NULL},
+    {"get_audio_device_channel_map",
+     (PyCFunction)pg_audio_get_audio_device_channel_map, METH_O, NULL},
     {"bind_audio_stream", (PyCFunction)pg_audio_bind_audio_stream,
      METH_FASTCALL, NULL},
     {"unbind_audio_stream", (PyCFunction)pg_audio_unbind_audio_stream, METH_O,

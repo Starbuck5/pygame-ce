@@ -152,6 +152,10 @@ class AudioDevice:
     def name(self) -> str:
         return _base_audio.get_audio_device_name(self._state)
 
+    @property
+    def channel_map(self) -> list[int] | None:
+        return _base_audio.get_audio_device_channel_map(self._state)
+
 
 class LogicalAudioDevice(AudioDevice):
     def bind(self, *args: "AudioStream") -> None:
@@ -176,7 +180,7 @@ class LogicalAudioDevice(AudioDevice):
     @property
     def gain(self) -> float:
         return _base_audio.get_audio_device_gain(self._state)
-    
+
     @gain.setter
     def gain(self, value: float) -> None:
         _base_audio.set_audio_device_gain(self._state, value)
