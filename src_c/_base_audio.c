@@ -600,7 +600,11 @@ pg_audio_get_drivers(PyObject *module, PyObject *_null)
             Py_DECREF(driver_list);
             return NULL;
         }
-        PyList_SetItem(driver_list, i, item);
+        if (PyList_SetItem(driver_list, i, item) < 0) {
+            Py_DECREF(item);
+            Py_DECREF(driver_list);
+            return NULL;
+        }
     }
 
     return driver_list;
@@ -671,6 +675,34 @@ pg_audio_get_recording_device_states(PyObject *module, PyObject *_null)
 }
 
 static PyObject *
+pg_audio_load_wav(PyObject *module, PyObject *arg)
+{
+    // SDL_LoadWAV_IO
+    // arg: FileLike
+
+    SDL_IOStream *src = pgRWops_FromObject(arg, NULL);
+    if (src == NULL) {
+        return NULL;
+    }
+
+    SDL_AudioSpec spec;
+    Uint8 *audio_buf;
+    Uint32 audio_len;
+
+    if (!SDL_LoadWAV_IO(src, true, &spec, &audio_buf, &audio_len)) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    PyObject *bytes = PyBytes_FromStringAndSize(audio_buf, audio_len);
+    SDL_free(audio_buf);
+    if (bytes == NULL) {
+        return NULL;
+    }
+
+    return Py_BuildValue("Oiii", bytes, spec.format, spec.channels, spec.freq);
+}
+
+static PyObject *
 pg_audio_get_silence_value_for_format(PyObject *module, PyObject *const *args,
                                       Py_ssize_t nargs)
 {
@@ -698,6 +730,11 @@ static PyMethodDef audio_methods[] = {
      (PyCFunction)pg_audio_get_playback_device_states, METH_NOARGS, NULL},
     {"get_recording_device_states",
      (PyCFunction)pg_audio_get_recording_device_states, METH_NOARGS, NULL},
+    {"load_wav", (PyCFunction)pg_audio_load_wav, METH_O, NULL},
+
+    // format utility (the one)
+    {"get_silence_value_for_format",
+     (PyCFunction)pg_audio_get_silence_value_for_format, METH_FASTCALL, NULL},
 
     // AudioDevice utilities
     {"is_audio_device_playback",
@@ -722,10 +759,6 @@ static PyMethodDef audio_methods[] = {
      METH_O, NULL},
     {"set_audio_device_gain", (PyCFunction)pg_audio_set_audio_device_gain,
      METH_FASTCALL, NULL},
-
-    // format utility (the one)
-    {"get_silence_value_for_format",
-     (PyCFunction)pg_audio_get_silence_value_for_format, METH_FASTCALL, NULL},
 
     // AudioStream utilities
     {"create_audio_stream", (PyCFunction)pg_audio_create_audio_stream,

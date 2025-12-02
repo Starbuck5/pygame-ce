@@ -1,6 +1,7 @@
 from typing_extensions import Buffer
 import pygame.base
 import pygame._base_audio as _base_audio
+from pygame.typing import FileLike
 
 
 class AudioFormat:
@@ -12,9 +13,13 @@ class AudioFormat:
     _MASK_BIG_ENDIAN = 1 << 12
     _MASK_SIGNED = 1 << 15
 
+    format_num_to_instance = dict()
+
     def __init__(self, name: str, value: int) -> None:
         self._name = f"pygame.audio.{name}"
         self._value = value
+
+        AudioFormat.format_num_to_instance[value] = self
 
     @property
     def bitsize(self) -> int:
@@ -121,10 +126,6 @@ class AudioSpec:
 
 
 class AudioDevice:
-    # Will this just make it show up in the recommendations??
-    # def pause(self) -> None:
-    #    raise NotImplementedError("Only LogicalAudioDevices can be paused")
-
     # def __repr__(self) -> str:
     #    return f"AudioDevice with name {self.name}"
 
@@ -252,7 +253,9 @@ class AudioStream:
 
     @frequency_ratio.setter
     def frequency_ratio(self, value: float) -> None:
-        # TODO bounds check?
+        if value <= 0 or value > 10:
+            raise ValueError("Frequency ratio must be > 0 or <= 10.")
+
         _base_audio.set_audio_stream_frequency_ratio(self._state, value)
 
     def lock(self) -> None:
@@ -300,3 +303,10 @@ def get_recording_devices() -> list[AudioDevice]:
         output.append(device)
 
     return output
+
+
+def load_wav(file: FileLike) -> tuple[AudioSpec, bytes]:
+    audio_bytes, format_num, channels, frequency = _base_audio.load_wav(file)
+
+    format_inst = AudioFormat.format_num_to_instance[format_num]
+    return [AudioSpec(format_inst, channels, frequency), audio_bytes]
