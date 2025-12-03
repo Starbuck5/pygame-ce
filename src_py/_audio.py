@@ -125,6 +125,11 @@ class AudioSpec:
         )
 
 
+def _audio_spec_from_ints(format_num: int, channels: int, frequency: int) -> AudioSpec:
+    format_inst = AudioFormat.format_num_to_instance[format_num]
+    return AudioSpec(format_inst, channels, frequency)
+
+
 class AudioDevice:
     # def __repr__(self) -> str:
     #    return f"AudioDevice with name {self.name}"
@@ -189,9 +194,6 @@ class AudioStream:
                 f"AudioStream dst_spec must be an AudioSpec, received {type(dst_spec)}"
             )
 
-        self._src_spec = src_spec
-        self._dst_spec = dst_spec
-
         self._state = _base_audio.create_audio_stream(
             src_spec.format,
             src_spec.channels,
@@ -234,11 +236,22 @@ class AudioStream:
 
     @property
     def src_spec(self) -> AudioSpec:
-        return self._src_spec
+        return _audio_spec_from_ints(
+            *_base_audio.get_audio_stream_format(self._state)[0:3]
+        )
 
     @property
     def dst_spec(self) -> AudioSpec:
-        return self._dst_spec
+        # My first impulse here was to store the Python dst_spec AudioSpec
+        # object and just return it here. BUT, SDL can change the output
+        # format of the stream internally-
+        # Only when it gets bound?
+        # To guarantee correctness it now pulls it every time, even though
+        # that is in efficient.
+
+        return _audio_spec_from_ints(
+            *_base_audio.get_audio_stream_format(self._state)[3:6]
+        )
 
     @property
     def gain(self) -> float:
@@ -267,7 +280,11 @@ class AudioStream:
         _base_audio.unlock_audio_stream(self._state)
 
     def __repr__(self) -> str:
-        return f"<{self.__class__.__name__}({self._src_spec}, {self._dst_spec})>"
+        audio_format_ints = _base_audio.get_audio_stream_format(self._state)
+        src_spec = _audio_spec_from_ints(*audio_format_ints[0:3])
+        dst_spec = _audio_spec_from_ints(*audio_format_ints[3:6])
+
+        return f"<{self.__class__.__name__}({src_spec}, {dst_spec})>"
 
 
 # Dependency inject classes into the module
@@ -309,6 +326,4 @@ def get_recording_devices() -> list[AudioDevice]:
 
 def load_wav(file: FileLike) -> tuple[AudioSpec, bytes]:
     audio_bytes, format_num, channels, frequency = _base_audio.load_wav(file)
-
-    format_inst = AudioFormat.format_num_to_instance[format_num]
-    return [AudioSpec(format_inst, channels, frequency), audio_bytes]
+    return [_audio_spec_from_ints(format_num, channels, frequency), audio_bytes]

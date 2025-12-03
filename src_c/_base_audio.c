@@ -439,6 +439,24 @@ pg_audio_get_audio_stream_data(PyObject *module, PyObject *const *args,
 }
 
 static PyObject *
+pg_audio_get_audio_stream_format(PyObject *module, PyObject *arg)
+{
+    // SDL_GetAudioStreamFormat
+    // arg: PGAudioStreamStateObject
+
+    SDL_AudioStream *stream = ((PGAudioStreamStateObject *)arg)->stream;
+    SDL_AudioSpec src_spec, dst_spec;
+
+    if (!SDL_GetAudioStreamFormat(stream, &src_spec, &dst_spec)) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    return Py_BuildValue("iiiiii", src_spec.format, src_spec.channels,
+                         src_spec.freq, dst_spec.format, dst_spec.channels,
+                         dst_spec.freq);
+}
+
+static PyObject *
 pg_audio_get_audio_stream_gain(PyObject *module, PyObject *arg)
 {
     // SDL_GetAudioStreamGain
@@ -775,6 +793,8 @@ static PyMethodDef audio_methods[] = {
      METH_FASTCALL, NULL},
     {"get_audio_stream_data", (PyCFunction)pg_audio_get_audio_stream_data,
      METH_FASTCALL, NULL},
+    {"get_audio_stream_format", (PyCFunction)pg_audio_get_audio_stream_format,
+     METH_O, NULL},
     {"get_audio_stream_gain", (PyCFunction)pg_audio_get_audio_stream_gain,
      METH_O, NULL},
     {"set_audio_stream_gain", (PyCFunction)pg_audio_set_audio_stream_gain,
