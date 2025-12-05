@@ -16,7 +16,7 @@ class AudioFormat:
     format_num_to_instance = dict()
 
     def __init__(self, name: str, value: int) -> None:
-        self._name = f"pygame.audio.{name}"
+        self._name = name
         self._value = value
 
         AudioFormat.format_num_to_instance[value] = self
@@ -54,15 +54,20 @@ class AudioFormat:
         return not self.is_signed
 
     @property
+    def name(self) -> str:
+        return self._name
+
+    @property
     def silence_value(self) -> int:
         return _base_audio.get_silence_value_for_format(self._value)
 
+    # TODO maybe unnecessary?
     def __index__(self) -> int:
         """Returns the actual constant value needed for calls to SDL"""
         return self._value
 
     def __repr__(self) -> str:
-        return self._name
+        return f"pygame.audio.{self._name}"
 
 
 UNKNOWN = AudioFormat("UNKNOWN", 0x0000)
@@ -246,7 +251,7 @@ class AudioStream:
     @property
     def device_paused(self) -> bool:
         return _base_audio.audio_stream_device_paused(self._state)
-    
+
     @property
     def device(self) -> LogicalAudioDevice | None:
         return self._device
@@ -257,6 +262,25 @@ class AudioStream:
             *_base_audio.get_audio_stream_format(self._state)[0:3]
         )
 
+    @src_spec.setter
+    def src_spec(self, value: AudioSpec) -> None:
+        if not isinstance(value, AudioSpec):
+            raise TypeError(
+                f"AudioStream src_spec must be an AudioSpec, received {type(value)}"
+            )
+
+        # If bound to a non-playback device (e.g. recording device), the input
+        # spec can't be changed. SDL itself will ignore these changes,
+        # but we are erroring to let the users know not to do this.
+        if self.device is not None and not self.device.is_playback:
+            raise pygame.error(
+                "Cannot change stream src spec while bound to a recording device"
+            )
+
+        _base_audio.set_audio_stream_format(
+            self._state, (value.format, value.channels, value.frequency), None
+        )
+
     @property
     def dst_spec(self) -> AudioSpec:
         # My first impulse here was to store the Python dst_spec AudioSpec
@@ -264,10 +288,29 @@ class AudioStream:
         # format of the stream internally-
         # Only when it gets bound?
         # To guarantee correctness it now pulls it every time, even though
-        # that is in efficient.
+        # that is inefficient.
 
         return _audio_spec_from_ints(
             *_base_audio.get_audio_stream_format(self._state)[3:6]
+        )
+
+    @dst_spec.setter
+    def dst_spec(self, value: AudioSpec) -> None:
+        if not isinstance(value, AudioSpec):
+            raise TypeError(
+                f"AudioStream dst_spec must be an AudioSpec, received {type(value)}"
+            )
+
+        # If bound to a playback device, the output spec can't be changed.
+        # SDL itself will ignore these changes, but we are erroring to let the users
+        # know not to do this.
+        if self.device is not None and self.device.is_playback:
+            raise pygame.error(
+                "Cannot change stream dst spec while bound to a playback device"
+            )
+
+        _base_audio.set_audio_stream_format(
+            self._state, None, (value.format, value.channels, value.frequency)
         )
 
     @property

@@ -499,6 +499,49 @@ pg_audio_get_audio_stream_format(PyObject *module, PyObject *arg)
 }
 
 static PyObject *
+pg_audio_set_audio_stream_format(PyObject *module, PyObject *const *args,
+                                 Py_ssize_t nargs)
+{
+    // SDL_SetAudioStreamFormat
+    // arg0: PGAudioStreamStateObject,
+    // src format: (format int, channels int, frequency int) | None
+    // dst format: (format int, channels int, frequency int) | None
+
+    SDL_AudioSpec src, dst;
+    SDL_AudioSpec *src_p = NULL;
+    SDL_AudioSpec *dst_p = NULL;
+
+    SDL_AudioStream *stream = ((PGAudioStreamStateObject *)args[0])->stream;
+
+    if (!Py_IsNone(args[1])) {
+        src.format = PyLong_AsInt(PyTuple_GetItem(args[1], 0));
+        src.channels = PyLong_AsInt(PyTuple_GetItem(args[1], 1));
+        src.freq = PyLong_AsInt(PyTuple_GetItem(args[1], 2));
+        src_p = &src;
+        if ((src.format == -1 || src.channels == -1 || src.freq == -1) &&
+            PyErr_Occurred()) {
+            return NULL;
+        }
+    }
+    if (!Py_IsNone(args[2])) {
+        dst.format = PyLong_AsInt(PyTuple_GetItem(args[2], 0));
+        dst.channels = PyLong_AsInt(PyTuple_GetItem(args[2], 1));
+        dst.freq = PyLong_AsInt(PyTuple_GetItem(args[2], 2));
+        dst_p = &dst;
+        if ((dst.format == -1 || dst.channels == -1 || dst.freq == -1) &&
+            PyErr_Occurred()) {
+            return NULL;
+        }
+    }
+
+    if (!SDL_SetAudioStreamFormat(stream, src_p, dst_p)) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    Py_RETURN_NONE;
+}
+
+static PyObject *
 pg_audio_get_audio_stream_gain(PyObject *module, PyObject *arg)
 {
     // SDL_GetAudioStreamGain
@@ -843,6 +886,8 @@ static PyMethodDef audio_methods[] = {
      (PyCFunction)pg_audio_audio_stream_device_paused, METH_O, NULL},
     {"get_audio_stream_format", (PyCFunction)pg_audio_get_audio_stream_format,
      METH_O, NULL},
+    {"set_audio_stream_format", (PyCFunction)pg_audio_set_audio_stream_format,
+     METH_FASTCALL, NULL},
     {"get_audio_stream_gain", (PyCFunction)pg_audio_get_audio_stream_gain,
      METH_O, NULL},
     {"set_audio_stream_gain", (PyCFunction)pg_audio_set_audio_stream_gain,
