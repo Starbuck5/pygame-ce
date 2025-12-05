@@ -202,6 +202,7 @@ class AudioStream:
             dst_spec.channels,
             dst_spec.frequency,
         )
+        self._device: LogicalAudioDevice | None = None
 
     def bind(self, device: LogicalAudioDevice) -> None:
         if not isinstance(device, LogicalAudioDevice):
@@ -210,9 +211,11 @@ class AudioStream:
             )
 
         _base_audio.bind_audio_stream(device._state, self._state)
+        self._device = device
 
     def unbind(self) -> None:
         _base_audio.unbind_audio_stream(self._state)
+        self._device = None
 
     def clear(self) -> None:
         _base_audio.clear_audio_stream(self._state)
@@ -243,6 +246,10 @@ class AudioStream:
     @property
     def device_paused(self) -> bool:
         return _base_audio.audio_stream_device_paused(self._state)
+    
+    @property
+    def device(self) -> LogicalAudioDevice | None:
+        return self._device
 
     @property
     def src_spec(self) -> AudioSpec:
