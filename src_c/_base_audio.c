@@ -373,37 +373,6 @@ pg_audio_get_audio_stream_queued(PyObject *module, PyObject *arg)
 }
 
 static PyObject *
-pg_audio_put_audio_stream_data(PyObject *module, PyObject *const *args,
-                               Py_ssize_t nargs)
-{
-    // SDL_PutAudioStreamData
-    // stream_state: PGAudioStreamStateObject, data: Buffer
-
-    SDL_AudioStream *stream = ((PGAudioStreamStateObject *)args[0])->stream;
-
-    PyObject *bytes = PyBytes_FromObject(args[1]);
-    if (bytes == NULL) {
-        return NULL;
-    }
-
-    void *buf;
-    int len;
-
-    if (PyBytes_AsStringAndSize(bytes, (char **)&buf, (Py_ssize_t *)&len) !=
-        0) {
-        Py_DECREF(bytes);
-        return NULL;
-    }
-
-    if (!SDL_PutAudioStreamData(stream, buf, len)) {
-        Py_DECREF(bytes);
-        return RAISE(pgExc_SDLError, SDL_GetError());
-    }
-
-    Py_RETURN_NONE;
-}
-
-static PyObject *
 pg_audio_get_audio_stream_data(PyObject *module, PyObject *const *args,
                                Py_ssize_t nargs)
 {
@@ -436,6 +405,79 @@ pg_audio_get_audio_stream_data(PyObject *module, PyObject *const *args,
     }
 
     return bytes;
+}
+
+static PyObject *
+pg_audio_put_audio_stream_data(PyObject *module, PyObject *const *args,
+                               Py_ssize_t nargs)
+{
+    // SDL_PutAudioStreamData
+    // stream_state: PGAudioStreamStateObject, data: Buffer
+
+    SDL_AudioStream *stream = ((PGAudioStreamStateObject *)args[0])->stream;
+
+    PyObject *bytes = PyBytes_FromObject(args[1]);
+    if (bytes == NULL) {
+        return NULL;
+    }
+
+    void *buf;
+    int len;
+
+    if (PyBytes_AsStringAndSize(bytes, (char **)&buf, (Py_ssize_t *)&len) !=
+        0) {
+        Py_DECREF(bytes);
+        return NULL;
+    }
+
+    if (!SDL_PutAudioStreamData(stream, buf, len)) {
+        Py_DECREF(bytes);
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+pg_audio_pause_audio_stream_device(PyObject *module, PyObject *arg)
+{
+    // SDL_PauseAudioStreamDevice
+    // arg: PGAudioStreamStateObject
+
+    SDL_AudioStream *stream = ((PGAudioStreamStateObject *)arg)->stream;
+    if (!SDL_PauseAudioStreamDevice(stream)) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+pg_audio_resume_audio_stream_device(PyObject *module, PyObject *arg)
+{
+    // SDL_ResumeAudioStreamDevice
+    // arg: PGAudioStreamStateObject
+
+    SDL_AudioStream *stream = ((PGAudioStreamStateObject *)arg)->stream;
+    if (!SDL_ResumeAudioStreamDevice(stream)) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+pg_audio_audio_stream_device_paused(PyObject *module, PyObject *arg)
+{
+    // SDL_AudioStreamDevicePaused
+    // arg: PGAudioStreamStateObject
+
+    SDL_AudioStream *stream = ((PGAudioStreamStateObject *)arg)->stream;
+    if (SDL_AudioStreamDevicePaused(stream)) {
+        Py_RETURN_TRUE;
+    }
+
+    Py_RETURN_FALSE;
 }
 
 static PyObject *
@@ -789,10 +831,16 @@ static PyMethodDef audio_methods[] = {
      (PyCFunction)pg_audio_get_audio_stream_available, METH_O, NULL},
     {"get_audio_stream_queued", (PyCFunction)pg_audio_get_audio_stream_queued,
      METH_O, NULL},
-    {"put_audio_stream_data", (PyCFunction)pg_audio_put_audio_stream_data,
-     METH_FASTCALL, NULL},
     {"get_audio_stream_data", (PyCFunction)pg_audio_get_audio_stream_data,
      METH_FASTCALL, NULL},
+    {"put_audio_stream_data", (PyCFunction)pg_audio_put_audio_stream_data,
+     METH_FASTCALL, NULL},
+    {"pause_audio_stream_device",
+     (PyCFunction)pg_audio_pause_audio_stream_device, METH_O, NULL},
+    {"resume_audio_stream_device",
+     (PyCFunction)pg_audio_resume_audio_stream_device, METH_O, NULL},
+    {"audio_stream_device_paused",
+     (PyCFunction)pg_audio_audio_stream_device_paused, METH_O, NULL},
     {"get_audio_stream_format", (PyCFunction)pg_audio_get_audio_stream_format,
      METH_O, NULL},
     {"get_audio_stream_gain", (PyCFunction)pg_audio_get_audio_stream_gain,

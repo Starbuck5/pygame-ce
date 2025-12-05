@@ -228,11 +228,21 @@ class AudioStream:
     def num_queued_bytes(self) -> int:
         return _base_audio.get_audio_stream_queued(self._state)
 
+    def get_data(self, size: int) -> bytes:
+        return _base_audio.get_audio_stream_data(self._state, size)
+
     def put_data(self, data: Buffer) -> None:
         _base_audio.put_audio_stream_data(self._state, data)
 
-    def get_data(self, size: int) -> bytes:
-        return _base_audio.get_audio_stream_data(self._state, size)
+    def pause_device(self) -> None:
+        _base_audio.pause_audio_stream_device(self._state)
+
+    def resume_device(self) -> None:
+        _base_audio.resume_audio_stream_device(self._state)
+
+    @property
+    def device_paused(self) -> bool:
+        return _base_audio.audio_stream_device_paused(self._state)
 
     @property
     def src_spec(self) -> AudioSpec:
@@ -259,7 +269,9 @@ class AudioStream:
 
     @gain.setter
     def gain(self, value: float) -> None:
-        # TODO: bounds check
+        if value < 0:
+            raise ValueError("Gain must be >= 0.")
+
         _base_audio.set_audio_stream_gain(self._state, value)
 
     @property
@@ -300,6 +312,10 @@ get_drivers = _base_audio.get_drivers
 
 # UGH, AudioDevices should probably be singletons based on the device id. ?
 # TODO: deal with that.
+
+# TODO: all resource cleanup tasks
+
+# TODO: fix whatever happens with keyboard interrupt
 
 
 def get_playback_devices() -> list[AudioDevice]:
