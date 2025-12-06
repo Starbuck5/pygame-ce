@@ -162,6 +162,7 @@ class AudioDevice:
     def is_playback(self) -> bool:
         return _base_audio.is_audio_device_playback(self._state)
 
+    # TODO: this doesn't work for the default device ids...
     @property
     def name(self) -> str:
         return _base_audio.get_audio_device_name(self._state)
@@ -364,38 +365,39 @@ get_drivers = _base_audio.get_drivers
 # TODO: test quit/init
 
 
+def _create_audio_device(dev_state) -> AudioDevice:
+    # If a Python AudioDevice is already allocated with that id, use it.
+    # Otherwise allocate a new AudioDevice and set its state.
+    device = AudioDevice._device_id_to_instance.get(dev_state.id)
+    if device is None:
+        device = object.__new__(AudioDevice)
+        device._state = dev_state
+        AudioDevice._device_id_to_instance[dev_state.id] = device
+    return device
+
+
 def get_playback_devices() -> list[AudioDevice]:
-    output = []
-
-    for dev_state in _base_audio.get_playback_device_states():
-        # If a Python AudioDevice is already allocated with that id, use it.
-        # Otherwise allocate a new AudioDevice and set its state.
-        device = AudioDevice._device_id_to_instance.get(dev_state.id)
-        if device is None:
-            device = object.__new__(AudioDevice)
-            device._state = dev_state
-            AudioDevice._device_id_to_instance[dev_state.id] = device
-        output.append(device)
-
-    return output
+    return [
+        _create_audio_device(dev_state)
+        for dev_state in _base_audio.get_playback_device_states()
+    ]
 
 
 def get_recording_devices() -> list[AudioDevice]:
-    output = []
-
-    for dev_state in _base_audio.get_recording_device_states():
-        # If a Python AudioDevice is already allocated with that id, use it.
-        # Otherwise allocate a new AudioDevice and set its state.
-        device = AudioDevice._device_id_to_instance.get(dev_state.id)
-        if device is None:
-            device = object.__new__(AudioDevice)
-            device._state = dev_state
-            AudioDevice._device_id_to_instance[dev_state.id] = device
-        output.append(device)
-
-    return output
+    return [
+        _create_audio_device(dev_state)
+        for dev_state in _base_audio.get_recording_device_states()
+    ]
 
 
 def load_wav(file: FileLike) -> tuple[AudioSpec, bytes]:
     audio_bytes, format_num, channels, frequency = _base_audio.load_wav(file)
     return [_audio_spec_from_ints(format_num, channels, frequency), audio_bytes]
+
+
+DEFAULT_PLAYBACK_DEVICE = _create_audio_device(
+    _base_audio.get_default_playback_device_state()
+)
+DEFAULT_RECORDING_DEVICE = _create_audio_device(
+    _base_audio.get_default_recording_device_state()
+)

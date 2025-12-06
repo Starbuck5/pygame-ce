@@ -860,6 +860,36 @@ pg_audio_load_wav(PyObject *module, PyObject *arg)
 }
 
 static PyObject *
+pg_audio_get_default_playback_device_state(PyObject *module, PyObject *_null)
+{
+    audio_state *state = GET_STATE(module);
+    PyTypeObject *adevice_state_type =
+        (PyTypeObject *)state->audio_device_state_type;
+
+    PGAudioDeviceStateObject *device =
+        (PGAudioDeviceStateObject *)adevice_state_type->tp_alloc(
+            adevice_state_type, 0);
+    device->devid = SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK;
+
+    return (PyObject *)device;
+}
+
+static PyObject *
+pg_audio_get_default_recording_device_state(PyObject *module, PyObject *_null)
+{
+    audio_state *state = GET_STATE(module);
+    PyTypeObject *adevice_state_type =
+        (PyTypeObject *)state->audio_device_state_type;
+
+    PGAudioDeviceStateObject *device =
+        (PGAudioDeviceStateObject *)adevice_state_type->tp_alloc(
+            adevice_state_type, 0);
+    device->devid = SDL_AUDIO_DEVICE_DEFAULT_RECORDING;
+
+    return (PyObject *)device;
+}
+
+static PyObject *
 pg_audio_get_silence_value_for_format(PyObject *module, PyObject *const *args,
                                       Py_ssize_t nargs)
 {
@@ -888,6 +918,12 @@ static PyMethodDef audio_methods[] = {
     {"get_recording_device_states",
      (PyCFunction)pg_audio_get_recording_device_states, METH_NOARGS, NULL},
     {"load_wav", (PyCFunction)pg_audio_load_wav, METH_O, NULL},
+    {"get_default_playback_device_state",
+     (PyCFunction)pg_audio_get_default_playback_device_state, METH_NOARGS,
+     NULL},
+    {"get_default_recording_device_state",
+     (PyCFunction)pg_audio_get_default_recording_device_state, METH_NOARGS,
+     NULL},
 
     // format utility (the one)
     {"get_silence_value_for_format",
