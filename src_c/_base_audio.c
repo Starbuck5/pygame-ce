@@ -1,6 +1,9 @@
 #include "pygame.h"
 #include "pgcompat.h"
 
+// Useful heap type example @
+// https://github.com/python/cpython/blob/main/Modules/xxlimited.c
+
 // ***************************************************************************
 // OVERALL DEFINITIONS
 // ***************************************************************************
@@ -30,15 +33,32 @@ typedef struct {
 // AUDIO.AUDIODEVICE CLASS
 // ***************************************************************************
 
-static PyType_Slot adevice_state_slots[] = {{0, NULL}};
+// The documentation says heap types need to support GC, so we're implementing
+// traverse even though the object has no explicit references.
+static int
+adevice_state_traverse(PyObject *op, visitproc visit, void *arg)
+{
+    // Visit the type
+    Py_VISIT(Py_TYPE(op));
+    return 0;
+}
+
+static PyMemberDef adevice_state_members[] = {
+    {"id", Py_T_INT, offsetof(PGAudioDeviceStateObject, devid), Py_READONLY,
+     NULL},
+    {NULL} /* Sentinel */
+};
+
+static PyType_Slot adevice_state_slots[] = {
+    {Py_tp_members, adevice_state_members},
+    {Py_tp_traverse, adevice_state_traverse},
+    {0, NULL}};
 
 static PyType_Spec adevice_state_spec = {
     .name = "AudioDeviceState",
     .basicsize = sizeof(PGAudioDeviceStateObject),
     .itemsize = 0,
-    // todo apparently needs to support GC
-    // https://docs.python.org/3/c-api/typeobj.html#c.Py_TPFLAGS_HEAPTYPE
-    .flags = 0,
+    .flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
     .slots = adevice_state_slots};
 
 static PyObject *
@@ -229,15 +249,24 @@ pg_audio_open_audio_device(PyObject *module, PyObject *const *args,
 // AUDIO.AUDIOSTREAM CLASS
 // ***************************************************************************
 
-static PyType_Slot astream_state_slots[] = {{0, NULL}};
+// The documentation says heap types need to support GC, so we're implementing
+// traverse even though the object has no explicit references.
+static int
+astream_state_traverse(PyObject *op, visitproc visit, void *arg)
+{
+    // Visit the type
+    Py_VISIT(Py_TYPE(op));
+    return 0;
+}
+
+static PyType_Slot astream_state_slots[] = {
+    {Py_tp_traverse, astream_state_traverse}, {0, NULL}};
 
 static PyType_Spec astream_state_spec = {
     .name = "AudioStreamState",
     .basicsize = sizeof(PGAudioStreamStateObject),
     .itemsize = 0,
-    // todo apparently needs to support GC
-    // https://docs.python.org/3/c-api/typeobj.html#c.Py_TPFLAGS_HEAPTYPE
-    .flags = 0,
+    .flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
     .slots = astream_state_slots};
 
 static PyObject *

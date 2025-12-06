@@ -1,4 +1,5 @@
 from typing_extensions import Buffer
+import weakref
 import pygame.base
 import pygame._base_audio as _base_audio
 from pygame.typing import FileLike
@@ -136,6 +137,8 @@ def _audio_spec_from_ints(format_num: int, channels: int, frequency: int) -> Aud
 
 
 class AudioDevice:
+    _device_id_to_instance = weakref.WeakValueDictionary()
+
     # def __repr__(self) -> str:
     #    return f"AudioDevice with name {self.name}"
 
@@ -359,21 +362,23 @@ quit = _base_audio.quit
 get_current_driver = _base_audio.get_current_driver
 get_drivers = _base_audio.get_drivers
 
-
-# UGH, AudioDevices should probably be singletons based on the device id. ?
-# TODO: deal with that.
-
 # TODO: all resource cleanup tasks
-
+# TODO: SDL_DestroyAudioStream, SDL_CloseAudioDevice
+# TODO: AudioStreamState object GC
 # TODO: fix whatever happens with keyboard interrupt
-
+# TODO: test quit/init
 
 def get_playback_devices() -> list[AudioDevice]:
     output = []
 
     for dev_state in _base_audio.get_playback_device_states():
-        device = object.__new__(AudioDevice)
-        device._state = dev_state
+        # If a Python AudioDevice is already allocated with that id, use it.
+        # Otherwise allocate a new AudioDevice and set its state.
+        device = AudioDevice._device_id_to_instance.get(dev_state.id)
+        if device is None:
+            device = object.__new__(AudioDevice)
+            device._state = dev_state
+            AudioDevice._device_id_to_instance[dev_state.id] = device
         output.append(device)
 
     return output
@@ -383,8 +388,13 @@ def get_recording_devices() -> list[AudioDevice]:
     output = []
 
     for dev_state in _base_audio.get_recording_device_states():
-        device = object.__new__(AudioDevice)
-        device._state = dev_state
+        # If a Python AudioDevice is already allocated with that id, use it.
+        # Otherwise allocate a new AudioDevice and set its state.
+        device = AudioDevice._device_id_to_instance.get(dev_state.id)
+        if device is None:
+            device = object.__new__(AudioDevice)
+            device._state = dev_state
+            AudioDevice._device_id_to_instance[dev_state.id] = device
         output.append(device)
 
     return output
