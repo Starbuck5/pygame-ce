@@ -1,7 +1,7 @@
-from typing_extensions import Buffer
 import weakref
-import pygame.base
+
 import pygame._base_audio as _base_audio
+import pygame.base
 from pygame.typing import FileLike
 
 
@@ -242,7 +242,9 @@ class AudioStream:
     def get_data(self, size: int) -> bytes:
         return _base_audio.get_audio_stream_data(self._state, size)
 
-    def put_data(self, data: Buffer) -> None:
+    # TODO: replace bytes | bytearray | memoryview with collections.abc.Buffer
+    # when we support only 3.12 and up.
+    def put_data(self, data: bytes | bytearray | memoryview) -> None:
         _base_audio.put_audio_stream_data(self._state, data)
 
     def pause_device(self) -> None:
@@ -352,21 +354,15 @@ class AudioStream:
         return f"<{self.__class__.__name__}({src_spec}, {dst_spec})>"
 
 
-# Dependency inject classes into the module
-_base_audio.AudioDevice = LogicalAudioDevice
-_base_audio.LogicalAudioDevice = LogicalAudioDevice
-
-
 init = _base_audio.init
 quit = _base_audio.quit
 get_current_driver = _base_audio.get_current_driver
 get_drivers = _base_audio.get_drivers
 
-# TODO: all resource cleanup tasks
-# TODO: SDL_DestroyAudioStream, SDL_CloseAudioDevice
-# TODO: AudioStreamState object GC
+
 # TODO: fix whatever happens with keyboard interrupt
 # TODO: test quit/init
+
 
 def get_playback_devices() -> list[AudioDevice]:
     output = []

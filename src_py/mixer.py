@@ -1,9 +1,8 @@
 from dataclasses import dataclass
-from typing import Union, List
+from typing import List, Union
 
 import pygame
-from pygame import _mixer
-from pygame import Event
+from pygame import Event, _mixer
 
 
 @dataclass
@@ -18,7 +17,6 @@ class _MixerState:
             track = _mixer.Track(self.mixer)
             track.add_tag("_sound")
             self.channel_tracks.append(track)
-
 
 
 _mixer_state: Union[_MixerState, None] = None
@@ -39,7 +37,7 @@ def quit():
     global _mixer_state
 
     # KNOWN ISSUE: quitting SDL3_mixer causes segfaults when deallocating Mixer objects (probably others too)
-    #_mixer.quit()
+    # _mixer.quit()
     _mixer_state = None
 
 
@@ -71,7 +69,7 @@ class Channel:
     @property
     def id(self) -> int:
         return self._id
-    
+
     def play(
         self,
         sound: Sound,
@@ -96,18 +94,16 @@ class Channel:
 
     def queue(self, sound: Sound, /) -> None: ...
     def set_source_location(self, angle: float, distance: float, /) -> None: ...
-    #@overload
-    #def set_volume(self, value: float, /) -> None: ...
-    #@overload
+    # @overload
+    # def set_volume(self, value: float, /) -> None: ...
+    # @overload
     def set_volume(self, left: float, right: float, /) -> None: ...
     def get_volume(self) -> float: ...
     def get_busy(self) -> bool: ...
     def get_sound(self) -> Sound: ...
     def get_queue(self) -> Sound: ...
     def set_endevent(self, type: Union[int, Event] = 0, /) -> None: ...
-    def get_endevent(self) -> int: ...   
-
-
+    def get_endevent(self) -> int: ...
 
 
 class _MusicImplementation:

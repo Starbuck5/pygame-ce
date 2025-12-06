@@ -458,7 +458,7 @@ else
         c_args: warnings_error,
         dependencies: pg_base_deps,
         install: true,
-        subdir: pg,        
+        subdir: pg,
     )
 endif
 endif

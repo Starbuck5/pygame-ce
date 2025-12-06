@@ -43,6 +43,17 @@ adevice_state_traverse(PyObject *op, visitproc visit, void *arg)
     return 0;
 }
 
+static void
+adevice_state_dealloc(PGAudioDeviceStateObject *self)
+{
+    SDL_CloseAudioDevice(self->devid);
+    PyObject_GC_UnTrack(self);
+    PyTypeObject *tp = Py_TYPE(self);
+    freefunc free = PyType_GetSlot(tp, Py_tp_free);
+    free(self);
+    Py_DECREF(tp);
+}
+
 static PyMemberDef adevice_state_members[] = {
     {"id", Py_T_INT, offsetof(PGAudioDeviceStateObject, devid), Py_READONLY,
      NULL},
@@ -52,6 +63,7 @@ static PyMemberDef adevice_state_members[] = {
 static PyType_Slot adevice_state_slots[] = {
     {Py_tp_members, adevice_state_members},
     {Py_tp_traverse, adevice_state_traverse},
+    {Py_tp_dealloc, adevice_state_dealloc},
     {0, NULL}};
 
 static PyType_Spec adevice_state_spec = {
@@ -259,8 +271,21 @@ astream_state_traverse(PyObject *op, visitproc visit, void *arg)
     return 0;
 }
 
+static void
+astream_state_dealloc(PGAudioStreamStateObject *self)
+{
+    SDL_DestroyAudioStream(self->stream);
+    PyObject_GC_UnTrack(self);
+    PyTypeObject *tp = Py_TYPE(self);
+    freefunc free = PyType_GetSlot(tp, Py_tp_free);
+    free(self);
+    Py_DECREF(tp);
+}
+
 static PyType_Slot astream_state_slots[] = {
-    {Py_tp_traverse, astream_state_traverse}, {0, NULL}};
+    {Py_tp_traverse, astream_state_traverse},
+    {Py_tp_dealloc, astream_state_dealloc},
+    {0, NULL}};
 
 static PyType_Spec astream_state_spec = {
     .name = "AudioStreamState",
@@ -938,7 +963,7 @@ static PyMethodDef audio_methods[] = {
 // ***************************************************************************
 
 int
-exec_audio(PyObject *module)
+pg_audio_exec(PyObject *module)
 {
     /*imported needed apis*/
     import_pygame_base();
@@ -974,10 +999,35 @@ exec_audio(PyObject *module)
     return 0;
 }
 
+static int
+pg_audio_traverse(PyObject *module, visitproc visit, void *arg)
+{
+    audio_state *state = GET_STATE(module);
+    Py_VISIT(state->audio_device_state_type);
+    Py_VISIT(state->audio_stream_state_type);
+    return 0;
+}
+
+static int
+pg_audio_clear(PyObject *module)
+{
+    audio_state *state = GET_STATE(module);
+    Py_CLEAR(state->audio_device_state_type);
+    Py_CLEAR(state->audio_stream_state_type);
+    return 0;
+}
+
+static void
+pg_audio_free(void *module)
+{
+    // allow pg_audio_exec to omit calling pg_audio_clear on error
+    (void)pg_audio_clear((PyObject *)module);
+}
+
 MODINIT_DEFINE(_base_audio)
 {
     static PyModuleDef_Slot audio_slots[] = {
-        {Py_mod_exec, &exec_audio},
+        {Py_mod_exec, &pg_audio_exec},
 #if PY_VERSION_HEX >= 0x030c0000
         {Py_mod_multiple_interpreters,
          Py_MOD_MULTIPLE_INTERPRETERS_NOT_SUPPORTED},  // TODO: see if this can
@@ -987,15 +1037,10 @@ MODINIT_DEFINE(_base_audio)
         {Py_mod_gil, Py_MOD_GIL_USED},  // TODO: support this later
 #endif
         {0, NULL}};
-    static struct PyModuleDef _module = {PyModuleDef_HEAD_INIT,
-                                         "_base_audio",
-                                         "DOC TODO",
-                                         sizeof(audio_state),
-                                         audio_methods,
-                                         audio_slots,
-                                         NULL,
-                                         NULL,
-                                         NULL};
+    static struct PyModuleDef _module = {
+        PyModuleDef_HEAD_INIT, "_base_audio",  NULL,
+        sizeof(audio_state),   audio_methods,  audio_slots,
+        pg_audio_traverse,     pg_audio_clear, pg_audio_free};
 
     return PyModuleDef_Init(&_module);
 }
