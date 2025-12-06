@@ -401,3 +401,6 @@ DEFAULT_PLAYBACK_DEVICE = _create_audio_device(
 DEFAULT_RECORDING_DEVICE = _create_audio_device(
     _base_audio.get_default_recording_device_state()
 )
+
+# Don't re-export names if it can be helped
+del weakref, FileLike
