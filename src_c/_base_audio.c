@@ -727,6 +727,19 @@ pg_audio_quit(PyObject *module, PyObject *_null)
 }
 
 static PyObject *
+pg_audio_get_init(PyObject *module, PyObject *_null)
+{
+    // Returns whether the subsystem is initialized, not
+    // whether _base_audio.init was called!
+    // EX: mixer would initialize SDL audio subsystem too.
+
+    if (!SDL_WasInit(SDL_INIT_AUDIO)) {
+        Py_RETURN_FALSE;
+    }
+    Py_RETURN_TRUE;
+}
+
+static PyObject *
 pg_audio_get_current_driver(PyObject *module, PyObject *_null)
 {
     AUDIO_INIT_CHECK(module);
@@ -908,11 +921,12 @@ pg_audio_get_silence_value_for_format(PyObject *module, PyObject *const *args,
 }
 
 static PyMethodDef audio_methods[] = {
-    {"init", (PyCFunction)pg_audio_init, METH_NOARGS, "TODO"},
-    {"quit", (PyCFunction)pg_audio_quit, METH_NOARGS, "TODO"},
+    {"init", (PyCFunction)pg_audio_init, METH_NOARGS, NULL},
+    {"quit", (PyCFunction)pg_audio_quit, METH_NOARGS, NULL},
+    {"get_init", (PyCFunction)pg_audio_get_init, METH_NOARGS, NULL},
     {"get_current_driver", (PyCFunction)pg_audio_get_current_driver,
-     METH_NOARGS, "TODO"},
-    {"get_drivers", (PyCFunction)pg_audio_get_drivers, METH_NOARGS, "TODO"},
+     METH_NOARGS, NULL},
+    {"get_drivers", (PyCFunction)pg_audio_get_drivers, METH_NOARGS, NULL},
     {"get_playback_device_states",
      (PyCFunction)pg_audio_get_playback_device_states, METH_NOARGS, NULL},
     {"get_recording_device_states",
@@ -1056,6 +1070,16 @@ pg_audio_clear(PyObject *module)
 static void
 pg_audio_free(void *module)
 {
+    // Maybe not necessary, but lets tell SDL that we no longer depend
+    // on the audio subsystem when the module is being deallocated.
+    audio_state *state = GET_STATE((PyObject *)module);
+    if (state != NULL) {
+        if (state->audio_initialized) {
+            SDL_QuitSubSystem(SDL_INIT_AUDIO);
+            state->audio_initialized = false;
+        }
+    }
+
     // allow pg_audio_exec to omit calling pg_audio_clear on error
     (void)pg_audio_clear((PyObject *)module);
 }

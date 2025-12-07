@@ -4,6 +4,9 @@ import pygame._base_audio as _base_audio
 import pygame.base
 from pygame.typing import FileLike
 
+# TODO: fix whatever happens with keyboard interrupt
+# TODO: test quit/init
+
 
 class AudioFormat:
     # AudioFormat details pulled from SDL_audio.h header files
@@ -129,11 +132,6 @@ class AudioSpec:
             self.__class__.__name__
             + f"({self._format}, {self._channels}, {self._frequency})"
         )
-
-
-def _audio_spec_from_ints(format_num: int, channels: int, frequency: int) -> AudioSpec:
-    format_inst = AudioFormat.format_num_to_instance[format_num]
-    return AudioSpec(format_inst, channels, frequency)
 
 
 class AudioDevice:
@@ -264,7 +262,7 @@ class AudioStream:
 
     @property
     def src_spec(self) -> AudioSpec:
-        return _audio_spec_from_ints(
+        return _internals._audio_spec_from_ints(
             *_base_audio.get_audio_stream_format(self._state)[0:3]
         )
 
@@ -296,7 +294,7 @@ class AudioStream:
         # To guarantee correctness it now pulls it every time, even though
         # that is inefficient.
 
-        return _audio_spec_from_ints(
+        return _internals._audio_spec_from_ints(
             *_base_audio.get_audio_stream_format(self._state)[3:6]
         )
 
@@ -349,58 +347,88 @@ class AudioStream:
 
     def __repr__(self) -> str:
         audio_format_ints = _base_audio.get_audio_stream_format(self._state)
-        src_spec = _audio_spec_from_ints(*audio_format_ints[0:3])
-        dst_spec = _audio_spec_from_ints(*audio_format_ints[3:6])
+        src_spec = _internals._audio_spec_from_ints(*audio_format_ints[0:3])
+        dst_spec = _internals._audio_spec_from_ints(*audio_format_ints[3:6])
 
         return f"<{self.__class__.__name__}({src_spec}, {dst_spec})>"
 
 
-init = _base_audio.init
-quit = _base_audio.quit
-get_current_driver = _base_audio.get_current_driver
-get_drivers = _base_audio.get_drivers
+def init() -> None:
+    sdl_subsystem_already_initialized = _base_audio.get_init()
+    _base_audio.init()
+
+    if not sdl_subsystem_already_initialized:
+        print("\nincrementing internals generation\n")
+        _internals.generation += 1
 
 
-# TODO: fix whatever happens with keyboard interrupt
-# TODO: test quit/init
+def quit() -> None:
+    _base_audio.quit()
 
 
-def _create_audio_device(dev_state) -> AudioDevice:
-    # If a Python AudioDevice is already allocated with that id, use it.
-    # Otherwise allocate a new AudioDevice and set its state.
-    device = AudioDevice._device_id_to_instance.get(dev_state.id)
-    if device is None:
-        device = object.__new__(AudioDevice)
-        device._state = dev_state
-        AudioDevice._device_id_to_instance[dev_state.id] = device
-    return device
+def get_init() -> bool:
+    return _base_audio.get_init()
+
+
+def get_current_driver() -> str:
+    return _base_audio.get_current_driver()
+
+
+def get_drivers() -> list[str]:
+    return _base_audio.get_drivers()
+
+
+class AudioInternals:
+    @staticmethod
+    def _create_audio_device(dev_state) -> AudioDevice:
+        # If a Python AudioDevice is already allocated with that id, use it.
+        # Otherwise allocate a new AudioDevice and set its state.
+        device = AudioDevice._device_id_to_instance.get(dev_state.id)
+        if device is None:
+            device = object.__new__(AudioDevice)
+            device._state = dev_state
+            AudioDevice._device_id_to_instance[dev_state.id] = device
+        return device
+
+    @staticmethod
+    def _audio_spec_from_ints(
+        format_num: int, channels: int, frequency: int
+    ) -> AudioSpec:
+        format_inst = AudioFormat.format_num_to_instance[format_num]
+        return AudioSpec(format_inst, channels, frequency)
+
+
+_internals = AudioInternals()
 
 
 def get_playback_devices() -> list[AudioDevice]:
     return [
-        _create_audio_device(dev_state)
+        _internals._create_audio_device(dev_state)
         for dev_state in _base_audio.get_playback_device_states()
     ]
 
 
 def get_recording_devices() -> list[AudioDevice]:
     return [
-        _create_audio_device(dev_state)
+        _internals._create_audio_device(dev_state)
         for dev_state in _base_audio.get_recording_device_states()
     ]
 
 
 def load_wav(file: FileLike) -> tuple[AudioSpec, bytes]:
     audio_bytes, format_num, channels, frequency = _base_audio.load_wav(file)
-    return [_audio_spec_from_ints(format_num, channels, frequency), audio_bytes]
+    return [
+        _internals._audio_spec_from_ints(format_num, channels, frequency),
+        audio_bytes,
+    ]
 
 
-DEFAULT_PLAYBACK_DEVICE = _create_audio_device(
+DEFAULT_PLAYBACK_DEVICE = _internals._create_audio_device(
     _base_audio.get_default_playback_device_state()
 )
-DEFAULT_RECORDING_DEVICE = _create_audio_device(
+DEFAULT_RECORDING_DEVICE = _internals._create_audio_device(
     _base_audio.get_default_recording_device_state()
 )
 
 # Don't re-export names if it can be helped
-del weakref, FileLike
+del weakref, FileLike, AudioInternals
