@@ -254,6 +254,7 @@ pg_mixer_obj_resume_all_tracks(PGMixerObject *self, PyObject *_null)
     Py_RETURN_NONE;
 }
 
+// TODO: finish implementation r.e. args
 static int
 pg_mixer_obj_init(PGMixerObject *self, PyObject *args, PyObject *kwargs)
 {
@@ -261,6 +262,9 @@ pg_mixer_obj_init(PGMixerObject *self, PyObject *args, PyObject *kwargs)
     // SDL_QuitSubSystem(SDL_INIT_AUDIO). So we must init here to keep
     // the init state even through the object life cycle. Init/quit is
     // refcounted by SDL.
+
+    // TODO fact check the necessity of this ^
+
     SDL_InitSubSystem(SDL_INIT_AUDIO);
 
     self->mixer =
