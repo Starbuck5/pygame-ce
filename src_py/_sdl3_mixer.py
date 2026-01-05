@@ -1,3 +1,5 @@
+import dataclasses
+
 from pygame import _sdl3_mixer_c
 
 init = _sdl3_mixer_c.init
@@ -32,8 +34,27 @@ class Mixer(_sdl3_mixer_c.Mixer):
     pass
 
 
+@dataclasses.dataclass(frozen=True)
+class AudioMetadata:
+    title: str | None
+    artist: str | None
+    album: str | None
+    copyright: str | None
+    track: int | None
+    total_tracks: int | None
+
+
 class Audio(_sdl3_mixer_c.Audio):
-    pass
+    def get_metadata(self) -> AudioMetadata:
+        metadata = _sdl3_mixer_c.Audio.get_metadata(self)
+        return AudioMetadata(
+            title=metadata["title"],
+            artist=metadata["artist"],
+            album=metadata["album"],
+            copyright=metadata["copyright"],
+            track=metadata["track"],
+            total_tracks=metadata["total_tracks"],
+        )
 
 
 class Track(_sdl3_mixer_c.Track):
