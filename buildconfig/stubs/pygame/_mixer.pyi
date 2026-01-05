@@ -1,5 +1,5 @@
 from collections.abc import Callable
-from typing import Type, TypedDict, TypeVar, Any
+from typing import Any, Type, TypedDict, TypeVar
 
 import _audio as audio
 from pygame.typing import FileLike

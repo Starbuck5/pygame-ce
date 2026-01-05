@@ -350,11 +350,12 @@ static PyType_Slot mixer_slots[] = {{Py_tp_methods, mixer_obj_methods},
                                     {Py_tp_traverse, pg_mixer_obj_traverse},
                                     {0, NULL}};
 
-static PyType_Spec mixer_spec = {.name = "Mixer",
-                                 .basicsize = sizeof(PGMixerObject),
-                                 .itemsize = 0,
-                                 .flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE,
-                                 .slots = mixer_slots};
+static PyType_Spec mixer_spec = {
+    .name = "Mixer",
+    .basicsize = sizeof(PGMixerObject),
+    .itemsize = 0,
+    .flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE,
+    .slots = mixer_slots};
 
 // ***************************************************************************
 // MIXER.AUDIO CLASS
@@ -647,11 +648,12 @@ static PyType_Slot audio_slots[] = {{Py_tp_init, pg_audio_obj_init},
                                     {Py_tp_traverse, pg_audio_obj_traverse},
                                     {0, NULL}};
 
-static PyType_Spec audio_spec = {.name = "Audio",
-                                 .basicsize = sizeof(PGAudioObject),
-                                 .itemsize = 0,
-                                 .flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE,
-                                 .slots = audio_slots};
+static PyType_Spec audio_spec = {
+    .name = "Audio",
+    .basicsize = sizeof(PGAudioObject),
+    .itemsize = 0,
+    .flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE,
+    .slots = audio_slots};
 
 // ***************************************************************************
 // MIXER.TRACK CLASS
@@ -909,7 +911,7 @@ pg_track_obj_traverse(PyObject *op, visitproc visit, void *arg)
     // Visit the type
     Py_VISIT(Py_TYPE(op));
 
-    PGTrackObject *self = (PGTrackObject*)op;
+    PGTrackObject *self = (PGTrackObject *)op;
     Py_VISIT(self->mixer_obj);
     Py_VISIT(self->source_obj);
     return 0;
@@ -918,11 +920,11 @@ pg_track_obj_traverse(PyObject *op, visitproc visit, void *arg)
 static int
 pg_track_obj_clear(PyObject *op)
 {
-    PGTrackObject *self = (PGTrackObject*)op;
+    PGTrackObject *self = (PGTrackObject *)op;
     Py_CLEAR(self->mixer_obj);
     Py_CLEAR(self->source_obj);
     return 0;
-} 
+}
 
 static PyGetSetDef track_obj_getsets[] = {
     {"playing", (getter)pg_track_obj_get_playing, NULL, "TODO", NULL},
@@ -956,11 +958,12 @@ static PyType_Slot track_slots[] = {{Py_tp_init, pg_track_obj_init},
                                     {Py_tp_clear, pg_track_obj_clear},
                                     {0, NULL}};
 
-static PyType_Spec track_spec = {.name = "Track",
-                                 .basicsize = sizeof(PGTrackObject),
-                                 .itemsize = 0,
-                                 .flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE,
-                                 .slots = track_slots};
+static PyType_Spec track_spec = {
+    .name = "Track",
+    .basicsize = sizeof(PGTrackObject),
+    .itemsize = 0,
+    .flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE,
+    .slots = track_slots};
 
 // ***************************************************************************
 // MODULE METHODS
