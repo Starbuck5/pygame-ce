@@ -454,8 +454,8 @@ if sdl_api != 3
     )
 else
     _mixer = py.extension_module(
-        '_mixer',
-        '_mixer.c',
+        '_sdl3_mixer_c',
+        '_sdl3_mixer_c.c',
         c_args: warnings_error,
         dependencies: pg_base_deps + sdl_mixer_dep,
         install: true,

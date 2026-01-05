@@ -2,6 +2,9 @@
 #include "pygame.h"
 #include "pgcompat.h"
 
+// Useful heap type example @
+// https://github.com/python/cpython/blob/main/Modules/xxlimited.c
+
 // ***************************************************************************
 // OVERALL DEFINITIONS
 // ***************************************************************************
@@ -304,6 +307,16 @@ pg_mixer_obj_set_gain(PGMixerObject *self, PyObject *value, void *_null)
     return 0;
 }
 
+// The documentation says heap types need to support GC, so we're implementing
+// traverse even though the object has no explicit references.
+static int
+pg_mixer_obj_traverse(PyObject *op, visitproc visit, void *arg)
+{
+    // Visit the type
+    Py_VISIT(Py_TYPE(op));
+    return 0;
+}
+
 static PyGetSetDef mixer_obj_getsets[] = {
     {"gain", (getter)pg_mixer_obj_get_gain, (setter)pg_mixer_obj_set_gain,
      "TODO", NULL},
@@ -334,12 +347,13 @@ static PyType_Slot mixer_slots[] = {{Py_tp_methods, mixer_obj_methods},
                                     {Py_tp_init, pg_mixer_obj_init},
                                     {Py_tp_getset, mixer_obj_getsets},
                                     {Py_tp_dealloc, pg_mixer_obj_dealloc},
+                                    {Py_tp_traverse, pg_mixer_obj_traverse},
                                     {0, NULL}};
 
 static PyType_Spec mixer_spec = {.name = "Mixer",
                                  .basicsize = sizeof(PGMixerObject),
                                  .itemsize = 0,
-                                 .flags = 0,
+                                 .flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE,
                                  .slots = mixer_slots};
 
 // ***************************************************************************
@@ -597,6 +611,14 @@ pg_audio_obj_get_metadata(PGAudioObject *self, PyObject *_null)
     return meta_dict;
 }
 
+static int
+pg_audio_obj_traverse(PyObject *op, visitproc visit, void *arg)
+{
+    // Visit the type
+    Py_VISIT(Py_TYPE(op));
+    return 0;
+}
+
 static PyGetSetDef audio_obj_getsets[] = {
     {"duration_frames", (getter)pg_audio_obj_get_duration_frames, NULL, "TODO",
      NULL},
@@ -622,12 +644,13 @@ static PyType_Slot audio_slots[] = {{Py_tp_init, pg_audio_obj_init},
                                     {Py_tp_getset, audio_obj_getsets},
                                     {Py_tp_methods, audio_obj_methods},
                                     {Py_tp_dealloc, pg_audio_obj_dealloc},
+                                    {Py_tp_traverse, pg_audio_obj_traverse},
                                     {0, NULL}};
 
 static PyType_Spec audio_spec = {.name = "Audio",
                                  .basicsize = sizeof(PGAudioObject),
                                  .itemsize = 0,
-                                 .flags = 0,
+                                 .flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE,
                                  .slots = audio_slots};
 
 // ***************************************************************************
@@ -879,6 +902,28 @@ pg_track_obj_resume(PGTrackObject *self, PyObject *null)
     Py_RETURN_NONE;
 }
 
+// traverse: Visit all references from an object, including its type
+static int
+pg_track_obj_traverse(PyObject *op, visitproc visit, void *arg)
+{
+    // Visit the type
+    Py_VISIT(Py_TYPE(op));
+
+    PGTrackObject *self = (PGTrackObject*)op;
+    Py_VISIT(self->mixer_obj);
+    Py_VISIT(self->source_obj);
+    return 0;
+}
+
+static int
+pg_track_obj_clear(PyObject *op)
+{
+    PGTrackObject *self = (PGTrackObject*)op;
+    Py_CLEAR(self->mixer_obj);
+    Py_CLEAR(self->source_obj);
+    return 0;
+} 
+
 static PyGetSetDef track_obj_getsets[] = {
     {"playing", (getter)pg_track_obj_get_playing, NULL, "TODO", NULL},
     {"paused", (getter)pg_track_obj_get_paused, NULL, "TODO", NULL},
@@ -907,12 +952,14 @@ static PyType_Slot track_slots[] = {{Py_tp_init, pg_track_obj_init},
                                     {Py_tp_dealloc, pg_track_obj_dealloc},
                                     {Py_tp_getset, track_obj_getsets},
                                     {Py_tp_methods, track_obj_methods},
+                                    {Py_tp_traverse, pg_track_obj_traverse},
+                                    {Py_tp_clear, pg_track_obj_clear},
                                     {0, NULL}};
 
 static PyType_Spec track_spec = {.name = "Track",
                                  .basicsize = sizeof(PGTrackObject),
                                  .itemsize = 0,
-                                 .flags = 0,
+                                 .flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE,
                                  .slots = track_slots};
 
 // ***************************************************************************
@@ -1049,7 +1096,7 @@ exec_mixer(PyObject *module)
     return 0;
 }
 
-MODINIT_DEFINE(_mixer)
+MODINIT_DEFINE(_sdl3_mixer_c)
 {
     static PyModuleDef_Slot mixer_slots[] = {
         {Py_mod_exec, &exec_mixer},
