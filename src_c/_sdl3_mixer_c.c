@@ -290,7 +290,7 @@ pg_mixer_obj_dealloc(PGMixerObject *self)
 static PyObject *
 pg_mixer_obj_get_gain(PGMixerObject *self, void *_null)
 {
-    return PyFloat_FromDouble(MIX_GetMasterGain(self->mixer));
+    return PyFloat_FromDouble(MIX_GetMixerGain(self->mixer));
 }
 
 static int
@@ -300,7 +300,7 @@ pg_mixer_obj_set_gain(PGMixerObject *self, PyObject *value, void *_null)
     if (gain == -1.0 && PyErr_Occurred()) {
         return -1;
     }
-    if (!MIX_SetMasterGain(self->mixer, (float)gain)) {
+    if (!MIX_SetMixerGain(self->mixer, (float)gain)) {
         PyErr_SetString(pgExc_SDLError, SDL_GetError());
         return -1;
     }
@@ -483,15 +483,15 @@ static PyObject *
 pg_audio_obj_from_sine_wave(PyTypeObject *cls, PyObject *args,
                             PyObject *kwargs)
 {
-    int hz;
+    int hz, ms=-1;
     float amplitude;
     PyObject *mixer_or_none = Py_None;
-    char *keywords[] = {"hz", "amplitude", "preferred_mixer", NULL};
+    char *keywords[] = {"hz", "amplitude", "preferred_mixer", "ms", NULL};
     PyObject *mixer_type =
         PyObject_GetAttrString((PyObject *)cls, "_mixer_type");
 
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "if|O", keywords, &hz,
-                                     &amplitude, &mixer_or_none)) {
+                                     &amplitude, &mixer_or_none, &ms)) {
         return NULL;
     }
 
@@ -511,7 +511,7 @@ pg_audio_obj_from_sine_wave(PyTypeObject *cls, PyObject *args,
 
     // MIX_CreateSineWaveAudio is bugged right now (2025-10-04),
     // complains about invalid context parameter.
-    MIX_Audio *sine_wave_audio = MIX_CreateSineWaveAudio(mixer, hz, amplitude);
+    MIX_Audio *sine_wave_audio = MIX_CreateSineWaveAudio(mixer, hz, amplitude, ms);
     if (sine_wave_audio == NULL) {
         return RAISE(pgExc_SDLError, SDL_GetError());
     }
@@ -709,9 +709,9 @@ pg_track_obj_get_paused(PGTrackObject *self, PyObject *_null)
 }
 
 static PyObject *
-pg_track_obj_get_looping(PGTrackObject *self, PyObject *_null)
+pg_track_obj_get_loops(PGTrackObject *self, PyObject *_null)
 {
-    return PyBool_FromLong(MIX_TrackLooping(self->track));
+    return PyLong_FromLong(MIX_GetTrackLoops(self->track));
 }
 
 static PyObject *
@@ -929,7 +929,7 @@ pg_track_obj_clear(PyObject *op)
 static PyGetSetDef track_obj_getsets[] = {
     {"playing", (getter)pg_track_obj_get_playing, NULL, "TODO", NULL},
     {"paused", (getter)pg_track_obj_get_paused, NULL, "TODO", NULL},
-    {"looping", (getter)pg_track_obj_get_looping, NULL, "TODO", NULL},
+    {"loops", (getter)pg_track_obj_get_loops, NULL, "TODO", NULL},
     {"frequency_ratio", (getter)pg_track_obj_get_freq_ratio,
      (setter)pg_track_obj_set_freq_ratio, "TODO", NULL},
     {NULL, NULL, NULL, NULL, NULL}};
