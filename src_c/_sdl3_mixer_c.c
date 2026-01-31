@@ -1,6 +1,7 @@
 #include <SDL3_mixer/SDL_mixer.h>
 #include "pygame.h"
 #include "pgcompat.h"
+#include "_base_audio.h"
 
 // Useful heap type example @
 // https://github.com/python/cpython/blob/main/Modules/xxlimited.c
@@ -257,21 +258,51 @@ pg_mixer_obj_resume_all_tracks(PGMixerObject *self, PyObject *_null)
     Py_RETURN_NONE;
 }
 
-// TODO: finish implementation r.e. args
+static PyObject *
+pg_mixer_obj_get_spec(PGMixerObject *self, PyObject *_null)
+{
+    SDL_AudioSpec spec;
+    if (!MIX_GetMixerFormat(self->mixer, &spec)) {
+        PyErr_SetString(pgExc_SDLError, SDL_GetError());
+        return NULL;
+    }
+
+    return Py_BuildValue("iii", spec.format, spec.channels, spec.freq);
+}
+
 static int
 pg_mixer_obj_init(PGMixerObject *self, PyObject *args, PyObject *kwargs)
 {
-    // Each time a MixerDevice-created Mixer is destroyed, SDL_Mixer calls
-    // SDL_QuitSubSystem(SDL_INIT_AUDIO). So we must init here to keep
-    // the init state even through the object life cycle. Init/quit is
-    // refcounted by SDL.
+    PyObject *device_obj;
+    PyObject *spec_obj = Py_None;
 
-    // TODO fact check the necessity of this ^
+    char *keywords[] = {"device", "spec", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|O", keywords,
+                                     &device_obj, &spec_obj)) {
+        return -1;
+    }
 
-    SDL_InitSubSystem(SDL_INIT_AUDIO);
+    SDL_AudioSpec *spec_p = NULL;
+    SDL_AudioSpec spec;
+    // if the passed in spec obj is not None, we assume it is a tuple
+    // of elements created by the Python layer for us.
+    if (spec_obj != Py_None) {
+        spec.format = PyLong_AsInt(PyTuple_GetItem(spec_obj, 0));
+        spec.channels = PyLong_AsInt(PyTuple_GetItem(spec_obj, 1));
+        spec.freq = PyLong_AsInt(PyTuple_GetItem(spec_obj, 2));
 
-    self->mixer =
-        MIX_CreateMixerDevice(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, NULL);
+        // Check that they all succeeded
+        if (spec.format == -1 || spec.channels == -1 || spec.freq == -1) {
+            if (PyErr_Occurred()) {
+                return -1;
+            }
+        }
+
+        spec_p = &spec;
+    }
+
+    self->mixer = MIX_CreateMixerDevice(
+        ((PGAudioDeviceStateObject *)device_obj)->devid, spec_p);
     if (self->mixer == NULL) {
         PyErr_SetString(pgExc_SDLError, SDL_GetError());
         return -1;
@@ -341,6 +372,7 @@ static PyMethodDef mixer_obj_methods[] = {
      METH_NOARGS, "TODO"},
     {"resume_all_tracks", (PyCFunction)pg_mixer_obj_resume_all_tracks,
      METH_NOARGS, "TODO"},
+    {"_get_spec", (PyCFunction)pg_mixer_obj_get_spec, METH_NOARGS, "TODO"},
     {NULL, NULL, 0, NULL}};
 
 static PyType_Slot mixer_slots[] = {{Py_tp_methods, mixer_obj_methods},
@@ -483,14 +515,14 @@ static PyObject *
 pg_audio_obj_from_sine_wave(PyTypeObject *cls, PyObject *args,
                             PyObject *kwargs)
 {
-    int hz, ms=-1;
+    int hz, ms = -1;
     float amplitude;
     PyObject *mixer_or_none = Py_None;
     char *keywords[] = {"hz", "amplitude", "preferred_mixer", "ms", NULL};
     PyObject *mixer_type =
         PyObject_GetAttrString((PyObject *)cls, "_mixer_type");
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "if|O", keywords, &hz,
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "if|Oi", keywords, &hz,
                                      &amplitude, &mixer_or_none, &ms)) {
         return NULL;
     }
@@ -511,7 +543,8 @@ pg_audio_obj_from_sine_wave(PyTypeObject *cls, PyObject *args,
 
     // MIX_CreateSineWaveAudio is bugged right now (2025-10-04),
     // complains about invalid context parameter.
-    MIX_Audio *sine_wave_audio = MIX_CreateSineWaveAudio(mixer, hz, amplitude, ms);
+    MIX_Audio *sine_wave_audio =
+        MIX_CreateSineWaveAudio(mixer, hz, amplitude, ms);
     if (sine_wave_audio == NULL) {
         return RAISE(pgExc_SDLError, SDL_GetError());
     }

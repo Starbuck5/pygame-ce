@@ -1,6 +1,6 @@
 import dataclasses
 
-from pygame import _sdl3_mixer_c
+from pygame import _audio as audio, _sdl3_mixer_c
 
 init = _sdl3_mixer_c.init
 quit = _sdl3_mixer_c.quit
@@ -31,7 +31,28 @@ get_decoders = _sdl3_mixer_c.get_decoders
 
 
 class Mixer(_sdl3_mixer_c.Mixer):
-    pass
+    def __init__(
+        self,
+        device: audio.AudioDevice = audio.DEFAULT_PLAYBACK_DEVICE,
+        spec: audio.AudioSpec | None = None,
+    ) -> None:
+        if spec is None:
+            _sdl3_mixer_c.Mixer.__init__(self, device._state, spec)
+        elif isinstance(spec, audio.AudioSpec):
+            _sdl3_mixer_c.Mixer.__init__(
+                self, device._state, (spec.format, spec.channels, spec.frequency)
+            )
+        else:
+            raise TypeError(
+                "Mixer init 'spec' argument must be an AudioSpec "
+                f"or None, received {type(spec)}"
+            )
+
+    @property
+    def spec(self) -> audio.AudioSpec:
+        return audio._internals.audio_spec_from_ints(
+            *_sdl3_mixer_c.Mixer._get_spec(self)
+        )
 
 
 @dataclasses.dataclass(frozen=True)
