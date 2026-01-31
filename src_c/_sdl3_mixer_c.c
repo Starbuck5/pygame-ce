@@ -645,6 +645,18 @@ pg_audio_obj_get_metadata(PGAudioObject *self, PyObject *_null)
     return meta_dict;
 }
 
+static PyObject *
+pg_audio_obj_get_spec(PGAudioObject *self, PyObject *_null)
+{
+    SDL_AudioSpec spec;
+    if (!MIX_GetAudioFormat(self->audio, &spec)) {
+        PyErr_SetString(pgExc_SDLError, SDL_GetError());
+        return NULL;
+    }
+
+    return Py_BuildValue("iii", spec.format, spec.channels, spec.freq);
+}
+
 static int
 pg_audio_obj_traverse(PyObject *op, visitproc visit, void *arg)
 {
@@ -671,6 +683,8 @@ static PyMethodDef audio_obj_methods[] = {
     {"frames_to_ms", (PyCFunction)pg_audio_obj_frames_to_ms,
      METH_VARARGS | METH_KEYWORDS, "TODO"},
     {"get_metadata", (PyCFunction)pg_audio_obj_get_metadata, METH_NOARGS,
+     "TODO"},
+    {"_get_spec", (PyCFunction)pg_audio_obj_get_spec, METH_NOARGS,
      "TODO"},
     {NULL, NULL, 0, NULL}};
 

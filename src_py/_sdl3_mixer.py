@@ -3,7 +3,7 @@ import dataclasses
 from pygame import _audio as audio, _sdl3_mixer_c
 
 init = _sdl3_mixer_c.init
-quit = _sdl3_mixer_c.quit
+#quit = _sdl3_mixer_c.quit
 get_sdl_mixer_version = _sdl3_mixer_c.get_sdl_mixer_version
 
 
@@ -66,6 +66,12 @@ class AudioMetadata:
 
 
 class Audio(_sdl3_mixer_c.Audio):
+    @property
+    def spec(self) -> audio.AudioSpec:
+        return audio._internals.audio_spec_from_ints(
+            *_sdl3_mixer_c.Audio._get_spec(self)
+        )
+
     def get_metadata(self) -> AudioMetadata:
         metadata = _sdl3_mixer_c.Audio.get_metadata(self)
         return AudioMetadata(
