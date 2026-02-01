@@ -684,8 +684,7 @@ static PyMethodDef audio_obj_methods[] = {
      METH_VARARGS | METH_KEYWORDS, "TODO"},
     {"get_metadata", (PyCFunction)pg_audio_obj_get_metadata, METH_NOARGS,
      "TODO"},
-    {"_get_spec", (PyCFunction)pg_audio_obj_get_spec, METH_NOARGS,
-     "TODO"},
+    {"_get_spec", (PyCFunction)pg_audio_obj_get_spec, METH_NOARGS, "TODO"},
     {NULL, NULL, 0, NULL}};
 
 static PyType_Slot audio_slots[] = {{Py_tp_init, pg_audio_obj_init},
@@ -711,11 +710,9 @@ pg_track_obj_init(PGTrackObject *self, PyObject *args, PyObject *kwargs)
 {
     PGMixerObject *mixer = NULL;
     char *keywords[] = {"mixer", NULL};
-    PyObject *mixer_type =
-        PyObject_GetAttrString((PyObject *)self, "_mixer_type");
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O!", keywords, mixer_type,
-                                     &mixer)) {
+    // Input object type check handled at the Python level.
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O", keywords, &mixer)) {
         return -1;
     }
 
@@ -1128,9 +1125,6 @@ exec_mixer(PyObject *module)
     }
 
     if (PyObject_SetAttrString(mixer_type, "_audio_type", audio_type) < 0) {
-        return -1;
-    }
-    if (PyObject_SetAttrString(track_type, "_mixer_type", mixer_type) < 0) {
         return -1;
     }
     if (PyObject_SetAttrString(track_type, "_audio_type", audio_type) < 0) {
