@@ -637,7 +637,7 @@ pg_audio_obj_get_metadata(PGAudioObject *self, PyObject *_null)
 
     PyObject *meta_dict =
         Py_BuildValue("{sz sz sz sz sN sN}", "title", title, "artist", artist,
-                      "album", album, "copyright", copyright, "track",
+                      "album", album, "copyright", copyright, "track_num",
                       track_obj, "total_tracks", total_track_obj);
 
     SDL_UnlockProperties(props);

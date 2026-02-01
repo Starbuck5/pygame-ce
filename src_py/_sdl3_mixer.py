@@ -61,7 +61,7 @@ class AudioMetadata:
     artist: str | None
     album: str | None
     copyright: str | None
-    track: int | None
+    track_num: int | None
     total_tracks: int | None
 
 
@@ -79,7 +79,7 @@ class Audio(_sdl3_mixer_c.Audio):
             artist=metadata["artist"],
             album=metadata["album"],
             copyright=metadata["copyright"],
-            track=metadata["track"],
+            track_num=metadata["track_num"],
             total_tracks=metadata["total_tracks"],
         )
 
