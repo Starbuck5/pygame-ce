@@ -857,6 +857,40 @@ pg_track_obj_get_audio(PGTrackObject *self, PyObject *_null)
     Py_RETURN_NONE;
 }
 
+static PyObject *
+pg_track_obj_set_filestream(PGTrackObject *self, PyObject *args, PyObject *kwargs)
+{
+    PyObject *file_obj = NULL;
+    char *keywords[] = {"file", NULL};
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O", keywords,
+                                     &file_obj)) {
+        return NULL;
+    }
+
+    SDL_IOStream* io = pgRWops_FromObject(file_obj, NULL);
+    if (io == NULL) {
+        return NULL;
+    }
+
+    if (!MIX_SetTrackIOStream(self->track, io, true)) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    // We've potentially replaced the track source, so lets get
+    // rid of any previous track source reference. 
+    Py_XDECREF(self->source_obj);
+
+    // Hold onto you! -- is this actually needed?
+    // Theoretically this is keeping Python file object (like BytesIO) alive
+    // through the stream, but maybe the rwObject subsystem is smart enough
+    // to do that.
+    Py_INCREF(file_obj);
+    self->source_obj = file_obj;
+
+    Py_RETURN_NONE;
+}
+
 #define SET_NUM_PROPERTY_IFNOTDEFAULT_ANDFLAG(props, property, value, \
                                               default, success)       \
     if (value != default) {                                           \
@@ -1164,6 +1198,8 @@ static PyMethodDef track_obj_methods[] = {
     {"set_audio", (PyCFunction)pg_track_obj_set_audio,
      METH_VARARGS | METH_KEYWORDS, "TODO"},
     {"get_audio", (PyCFunction)pg_track_obj_get_audio, METH_NOARGS, "TODO"},
+    {"set_filestream", (PyCFunction)pg_track_obj_set_filestream,
+     METH_VARARGS | METH_KEYWORDS, "TODO"},
     {"play", (PyCFunction)pg_track_obj_play, METH_VARARGS | METH_KEYWORDS,
      "TODO"},
     {"add_tag", (PyCFunction)pg_track_obj_add_tag,
