@@ -766,6 +766,26 @@ pg_track_obj_get_loops(PGTrackObject *self, PyObject *_null)
 }
 
 static PyObject *
+pg_track_obj_get_gain(PGTrackObject *self, PyObject *_null)
+{
+    return PyFloat_FromDouble(MIX_GetTrackGain(self->track));
+}
+
+static int
+pg_track_obj_set_gain(PGTrackObject *self, PyObject *value, void *_null)
+{
+    double gain = PyFloat_AsDouble(value);
+    if (gain == -1.0 && PyErr_Occurred()) {
+        return -1;
+    }
+    if (!MIX_SetTrackGain(self->track, (float)gain)) {
+        PyErr_SetString(pgExc_SDLError, SDL_GetError());
+        return -1;
+    }
+    return 0;
+}
+
+static PyObject *
 pg_track_obj_get_freq_ratio(PGTrackObject *self, PyObject *_null)
 {
     float ratio = MIX_GetTrackFrequencyRatio(self->track);
@@ -982,6 +1002,8 @@ static PyGetSetDef track_obj_getsets[] = {
     {"playing", (getter)pg_track_obj_get_playing, NULL, "TODO", NULL},
     {"paused", (getter)pg_track_obj_get_paused, NULL, "TODO", NULL},
     {"loops", (getter)pg_track_obj_get_loops, NULL, "TODO", NULL},
+    {"gain", (getter)pg_track_obj_get_gain, (setter)pg_track_obj_set_gain,
+     "TODO", NULL},
     {"frequency_ratio", (getter)pg_track_obj_get_freq_ratio,
      (setter)pg_track_obj_set_freq_ratio, "TODO", NULL},
     {NULL, NULL, NULL, NULL, NULL}};
