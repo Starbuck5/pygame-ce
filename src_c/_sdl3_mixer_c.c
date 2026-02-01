@@ -833,7 +833,7 @@ pg_track_obj_set_audio(PGTrackObject *self, PyObject *args, PyObject *kwargs)
 
     // We've successfully added (or removed) an audio, lets decref anything
     // we were previously holding onto.
-    Py_XDECREF(self->source_obj);
+    Py_CLEAR(self->source_obj);
 
     if (audio != NULL) {
         // We've successfully added an audio object, yay!
@@ -858,17 +858,76 @@ pg_track_obj_get_audio(PGTrackObject *self, PyObject *_null)
 }
 
 static PyObject *
-pg_track_obj_set_filestream(PGTrackObject *self, PyObject *args, PyObject *kwargs)
+pg_track_obj_set_audiostream(PGTrackObject *self, PyObject *args,
+                             PyObject *kwargs)
+{
+    PyObject *audiostream_or_none = NULL;
+    char *keywords[] = {"audiostream", NULL};
+
+    // This function relies on Python level type checking to remove values
+    // that are not AudioStream objects or None.
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O", keywords,
+                                     &audiostream_or_none)) {
+        return NULL;
+    }
+
+    SDL_AudioStream *stream = NULL;
+    if (audiostream_or_none != Py_None) {
+        // audiostream._state to get at internals
+        PGAudioStreamStateObject *as_state =
+            (PGAudioStreamStateObject *)PyObject_GetAttrString(
+                audiostream_or_none, "_state");
+        if (as_state == NULL) {
+            return RAISE(pgExc_SDLError,
+                         "Unexpected internal error getting SDL audio stream "
+                         "from Python object");
+        }
+        stream = as_state->stream;
+        Py_DECREF(as_state);  // PyObject_GetAttrString gives new ref
+    }
+
+    if (!MIX_SetTrackAudioStream(self->track, stream)) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    // We've potentially replaced the track source, so lets get
+    // rid of any previous track source reference.
+    Py_CLEAR(self->source_obj);
+
+    if (stream != NULL) {
+        // We've successfully added an audio object, yay!
+        Py_INCREF(audiostream_or_none);
+        self->source_obj = audiostream_or_none;
+    }
+
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+pg_track_obj_get_audiostream(PGTrackObject *self, PyObject *_null)
+{
+    if (MIX_GetTrackAudioStream(self->track) != NULL) {
+        // This track object owns an audio, therefore our source object must
+        // be non-null, and an audio object.
+        Py_INCREF(self->source_obj);
+        return self->source_obj;
+    }
+
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+pg_track_obj_set_filestream(PGTrackObject *self, PyObject *args,
+                            PyObject *kwargs)
 {
     PyObject *file_obj = NULL;
     char *keywords[] = {"file", NULL};
 
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O", keywords,
-                                     &file_obj)) {
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O", keywords, &file_obj)) {
         return NULL;
     }
 
-    SDL_IOStream* io = pgRWops_FromObject(file_obj, NULL);
+    SDL_IOStream *io = pgRWops_FromObject(file_obj, NULL);
     if (io == NULL) {
         return NULL;
     }
@@ -878,8 +937,8 @@ pg_track_obj_set_filestream(PGTrackObject *self, PyObject *args, PyObject *kwarg
     }
 
     // We've potentially replaced the track source, so lets get
-    // rid of any previous track source reference. 
-    Py_XDECREF(self->source_obj);
+    // rid of any previous track source reference.
+    Py_CLEAR(self->source_obj);
 
     // Hold onto you! -- is this actually needed?
     // Theoretically this is keeping Python file object (like BytesIO) alive
@@ -1198,6 +1257,10 @@ static PyMethodDef track_obj_methods[] = {
     {"set_audio", (PyCFunction)pg_track_obj_set_audio,
      METH_VARARGS | METH_KEYWORDS, "TODO"},
     {"get_audio", (PyCFunction)pg_track_obj_get_audio, METH_NOARGS, "TODO"},
+    {"set_audiostream", (PyCFunction)pg_track_obj_set_audiostream,
+     METH_VARARGS | METH_KEYWORDS, "TODO"},
+    {"get_audiostream", (PyCFunction)pg_track_obj_get_audiostream, METH_NOARGS,
+     "TODO"},
     {"set_filestream", (PyCFunction)pg_track_obj_set_filestream,
      METH_VARARGS | METH_KEYWORDS, "TODO"},
     {"play", (PyCFunction)pg_track_obj_play, METH_VARARGS | METH_KEYWORDS,
