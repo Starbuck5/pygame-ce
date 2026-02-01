@@ -975,6 +975,76 @@ pg_track_obj_resume(PGTrackObject *self, PyObject *null)
     Py_RETURN_NONE;
 }
 
+static PyObject *
+pg_track_obj_set_stereo(PGTrackObject *self, PyObject *args,
+                             PyObject *kwargs)
+{
+    PyObject *gains_or_none_obj = NULL;
+    char *keywords[] = {"gains", NULL};
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O", keywords,
+                                     &gains_or_none_obj)) {
+        return NULL;
+    }
+
+    MIX_StereoGains *gains_p = NULL;
+    MIX_StereoGains gains;
+    if (gains_or_none_obj != Py_None) {
+        if (!pg_TwoFloatsFromObj(gains_or_none_obj, &gains.left, &gains.right)) {
+            return RAISE(PyExc_TypeError, "gains must be a sequence of two numbers");
+        }
+        gains_p = &gains;
+    }
+
+    if (!MIX_SetTrackStereo(self->track, gains_p)) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+    
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+pg_track_obj_set_3d_position(PGTrackObject *self, PyObject *args,
+                             PyObject *kwargs)
+{
+    PyObject *position_or_none_obj = NULL;
+    char *keywords[] = {"position", NULL};
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O", keywords,
+                                     &position_or_none_obj)) {
+        return NULL;
+    }
+
+    MIX_Point3D *point_p = NULL;
+    MIX_Point3D point;
+    if (position_or_none_obj != Py_None) {
+        // The error message this raises with invalid input not entirely ideal
+        if (!PyArg_ParseTuple(position_or_none_obj, "fff", &point.x, &point.y,
+                              &point.z)) {
+            return NULL;
+        }
+        point_p = &point;
+    }
+
+    if (!MIX_SetTrack3DPosition(self->track, point_p)) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+pg_track_obj_get_3d_position(PGTrackObject *self, PyObject *null)
+{
+    MIX_Point3D point;
+
+    if (!MIX_GetTrack3DPosition(self->track, &point)) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    return Py_BuildValue("fff", point.x, point.y, point.z);
+}
+
 // traverse: Visit all references from an object, including its type
 static int
 pg_track_obj_traverse(PyObject *op, visitproc visit, void *arg)
@@ -1022,6 +1092,12 @@ static PyMethodDef track_obj_methods[] = {
      "TODO"},
     {"pause", (PyCFunction)pg_track_obj_pause, METH_NOARGS, "TODO"},
     {"resume", (PyCFunction)pg_track_obj_resume, METH_NOARGS, "TODO"},
+    {"set_stereo", (PyCFunction)pg_track_obj_set_stereo,
+     METH_VARARGS | METH_KEYWORDS, "TODO"},
+    {"set_3d_position", (PyCFunction)pg_track_obj_set_3d_position,
+     METH_VARARGS | METH_KEYWORDS, "TODO"},
+    {"get_3d_position", (PyCFunction)pg_track_obj_get_3d_position, METH_NOARGS,
+     "TODO"},
     {NULL, NULL, 0, NULL}};
 
 static PyType_Slot track_slots[] = {{Py_tp_init, pg_track_obj_init},
