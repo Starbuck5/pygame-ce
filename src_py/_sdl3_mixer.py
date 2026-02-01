@@ -91,12 +91,4 @@ class Track(_sdl3_mixer_c.Track):
                 f"Track 'mixer' argument must be a Mixer, received {type(mixer)}"
             )
 
-        # Unfortunately this reference gets cleaned up by Python before the
-        # superclass cleanup, so the C Track object also needs to track this
-        # to protect itself from the mixer deallocating too early.
-        self.__mixer = mixer
         _sdl3_mixer_c.Track.__init__(self, mixer)
-
-    @property
-    def mixer(self) -> Mixer:
-        return self.__mixer

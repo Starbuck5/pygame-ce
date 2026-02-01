@@ -741,6 +741,13 @@ pg_track_obj_dealloc(PGTrackObject *self)
 }
 
 static PyObject *
+pg_track_obj_get_mixer(PGTrackObject *self, PyObject *_null)
+{
+    Py_INCREF(self->mixer_obj);
+    return self->mixer_obj;
+}
+
+static PyObject *
 pg_track_obj_get_playing(PGTrackObject *self, PyObject *_null)
 {
     return PyBool_FromLong(MIX_TrackPlaying(self->track));
@@ -971,6 +978,7 @@ pg_track_obj_clear(PyObject *op)
 }
 
 static PyGetSetDef track_obj_getsets[] = {
+    {"mixer", (getter)pg_track_obj_get_mixer, NULL, "TODO", NULL},
     {"playing", (getter)pg_track_obj_get_playing, NULL, "TODO", NULL},
     {"paused", (getter)pg_track_obj_get_paused, NULL, "TODO", NULL},
     {"loops", (getter)pg_track_obj_get_loops, NULL, "TODO", NULL},
