@@ -941,6 +941,36 @@ pg_track_obj_remove_tag(PGTrackObject *self, PyObject *args, PyObject *kwargs)
 }
 
 static PyObject *
+pg_track_obj_set_playback_position(PGTrackObject *self, PyObject *args,
+                                   PyObject *kwargs)
+{
+    int64_t frame_position;
+    char *keywords[] = {"frames", NULL};
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "L", keywords,
+                                     &frame_position)) {
+        return NULL;
+    }
+
+    if (!MIX_SetTrackPlaybackPosition(self->track, frame_position)) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    Py_RETURN_NONE;
+}
+
+static PyObject *
+pg_track_obj_get_playback_position(PGTrackObject *self, PyObject *null)
+{
+    int64_t frame_position = MIX_GetTrackPlaybackPosition(self->track);
+    if (frame_position == -1) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    return PyLong_FromInt64(frame_position);
+}
+
+static PyObject *
 pg_track_obj_get_remaining_frames(PGTrackObject *self, PyObject *null)
 {
     int64_t remaining = MIX_GetTrackRemaining(self->track);
@@ -1140,6 +1170,10 @@ static PyMethodDef track_obj_methods[] = {
      METH_VARARGS | METH_KEYWORDS, "TODO"},
     {"remove_tag", (PyCFunction)pg_track_obj_remove_tag,
      METH_VARARGS | METH_KEYWORDS, "TODO"},
+    {"set_playback_position", (PyCFunction)pg_track_obj_set_playback_position,
+     METH_VARARGS | METH_KEYWORDS, "TODO"},
+    {"get_playback_position", (PyCFunction)pg_track_obj_get_playback_position,
+     METH_NOARGS, "TODO"},
     {"get_remaining_frames", (PyCFunction)pg_track_obj_get_remaining_frames,
      METH_NOARGS, "TODO"},
     {"ms_to_frames", (PyCFunction)pg_track_obj_ms_to_frames,
