@@ -445,7 +445,7 @@ pg_audio_obj_get_duration_frames(PGAudioObject *self, void *_null)
     if (duration_frames < 0) {
         Py_RETURN_NONE;  // infinite / unknown
     }
-    return PyLong_FromLongLong(duration_frames);
+    return PyLong_FromInt64(duration_frames);
 }
 
 static PyObject *
@@ -456,7 +456,7 @@ pg_audio_obj_get_duration_ms(PGAudioObject *self, void *_null)
         Py_RETURN_NONE;  // infinite / unknown
     }
     int64_t duration_ms = MIX_AudioFramesToMS(self->audio, duration_frames);
-    return PyLong_FromLongLong(duration_ms);
+    return PyLong_FromInt64(duration_ms);
 }
 
 static PyObject *
@@ -569,7 +569,7 @@ pg_audio_obj_ms_to_frames(PGAudioObject *self, PyObject *args,
         return RAISE(pgExc_SDLError, SDL_GetError());
     }
 
-    return PyLong_FromLongLong(frames);
+    return PyLong_FromInt64(frames);
 }
 
 static PyObject *
@@ -588,7 +588,7 @@ pg_audio_obj_frames_to_ms(PGAudioObject *self, PyObject *args,
         return RAISE(pgExc_SDLError, SDL_GetError());
     }
 
-    return PyLong_FromLongLong(ms);
+    return PyLong_FromInt64(ms);
 }
 
 static PyObject *
@@ -941,6 +941,44 @@ pg_track_obj_remove_tag(PGTrackObject *self, PyObject *args, PyObject *kwargs)
 }
 
 static PyObject *
+pg_track_obj_ms_to_frames(PGTrackObject *self, PyObject *args,
+                          PyObject *kwargs)
+{
+    int64_t ms;
+    char *keywords[] = {"ms", NULL};
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "L", keywords, &ms)) {
+        return NULL;
+    }
+
+    int64_t frames = MIX_TrackMSToFrames(self->track, ms);
+    if (frames == -1 && ms >= 0) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    return PyLong_FromInt64(frames);
+}
+
+static PyObject *
+pg_track_obj_frames_to_ms(PGTrackObject *self, PyObject *args,
+                          PyObject *kwargs)
+{
+    int64_t frames;
+    char *keywords[] = {"frames", NULL};
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "L", keywords, &frames)) {
+        return NULL;
+    }
+
+    int64_t ms = MIX_TrackFramesToMS(self->track, frames);
+    if (ms == -1 && frames >= 0) {
+        return RAISE(pgExc_SDLError, SDL_GetError());
+    }
+
+    return PyLong_FromInt64(ms);
+}
+
+static PyObject *
 pg_track_obj_stop(PGTrackObject *self, PyObject *args, PyObject *kwargs)
 {
     int64_t fade_out_frames = 0;
@@ -976,8 +1014,7 @@ pg_track_obj_resume(PGTrackObject *self, PyObject *null)
 }
 
 static PyObject *
-pg_track_obj_set_stereo(PGTrackObject *self, PyObject *args,
-                             PyObject *kwargs)
+pg_track_obj_set_stereo(PGTrackObject *self, PyObject *args, PyObject *kwargs)
 {
     PyObject *gains_or_none_obj = NULL;
     char *keywords[] = {"gains", NULL};
@@ -990,8 +1027,10 @@ pg_track_obj_set_stereo(PGTrackObject *self, PyObject *args,
     MIX_StereoGains *gains_p = NULL;
     MIX_StereoGains gains;
     if (gains_or_none_obj != Py_None) {
-        if (!pg_TwoFloatsFromObj(gains_or_none_obj, &gains.left, &gains.right)) {
-            return RAISE(PyExc_TypeError, "gains must be a sequence of two numbers");
+        if (!pg_TwoFloatsFromObj(gains_or_none_obj, &gains.left,
+                                 &gains.right)) {
+            return RAISE(PyExc_TypeError,
+                         "gains must be a sequence of two numbers");
         }
         gains_p = &gains;
     }
@@ -999,7 +1038,7 @@ pg_track_obj_set_stereo(PGTrackObject *self, PyObject *args,
     if (!MIX_SetTrackStereo(self->track, gains_p)) {
         return RAISE(pgExc_SDLError, SDL_GetError());
     }
-    
+
     Py_RETURN_NONE;
 }
 
@@ -1087,6 +1126,10 @@ static PyMethodDef track_obj_methods[] = {
     {"add_tag", (PyCFunction)pg_track_obj_add_tag,
      METH_VARARGS | METH_KEYWORDS, "TODO"},
     {"remove_tag", (PyCFunction)pg_track_obj_remove_tag,
+     METH_VARARGS | METH_KEYWORDS, "TODO"},
+    {"ms_to_frames", (PyCFunction)pg_track_obj_ms_to_frames,
+     METH_VARARGS | METH_KEYWORDS, "TODO"},
+    {"frames_to_ms", (PyCFunction)pg_track_obj_frames_to_ms,
      METH_VARARGS | METH_KEYWORDS, "TODO"},
     {"stop", (PyCFunction)pg_track_obj_stop, METH_VARARGS | METH_KEYWORDS,
      "TODO"},
@@ -1260,7 +1303,7 @@ MODINIT_DEFINE(_sdl3_mixer_c)
 #endif
         {0, NULL}};
     static struct PyModuleDef _module = {PyModuleDef_HEAD_INIT,
-                                         "_mixer",
+                                         "_sdl3_mixer_c",
                                          "DOC TODO",
                                          sizeof(_mixer_state),
                                          _mixer_methods,
