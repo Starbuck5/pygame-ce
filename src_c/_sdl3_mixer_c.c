@@ -941,6 +941,19 @@ pg_track_obj_remove_tag(PGTrackObject *self, PyObject *args, PyObject *kwargs)
 }
 
 static PyObject *
+pg_track_obj_get_remaining_frames(PGTrackObject *self, PyObject *null)
+{
+    int64_t remaining = MIX_GetTrackRemaining(self->track);
+
+    // If unknown, return None
+    if (remaining == -1) {
+        Py_RETURN_NONE;
+    }
+
+    return PyLong_FromInt64(remaining);
+}
+
+static PyObject *
 pg_track_obj_ms_to_frames(PGTrackObject *self, PyObject *args,
                           PyObject *kwargs)
 {
@@ -1127,6 +1140,8 @@ static PyMethodDef track_obj_methods[] = {
      METH_VARARGS | METH_KEYWORDS, "TODO"},
     {"remove_tag", (PyCFunction)pg_track_obj_remove_tag,
      METH_VARARGS | METH_KEYWORDS, "TODO"},
+    {"get_remaining_frames", (PyCFunction)pg_track_obj_get_remaining_frames,
+     METH_NOARGS, "TODO"},
     {"ms_to_frames", (PyCFunction)pg_track_obj_ms_to_frames,
      METH_VARARGS | METH_KEYWORDS, "TODO"},
     {"frames_to_ms", (PyCFunction)pg_track_obj_frames_to_ms,
