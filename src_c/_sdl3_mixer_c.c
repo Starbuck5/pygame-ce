@@ -31,6 +31,8 @@ typedef struct {
     PyObject_HEAD MIX_Track *track;
     PyObject *mixer_obj;
     PyObject *source_obj;
+    PyObject *stopped_callback;
+    PyObject *stopped_callback_userdata;
 } PGTrackObject;
 
 // ***************************************************************************
@@ -801,6 +803,9 @@ pg_track_obj_dealloc(PGTrackObject *self)
     PyObject_GC_UnTrack(self);
     Py_CLEAR(self->mixer_obj);
     Py_CLEAR(self->source_obj);
+    // MIX_DestroyTrack will not lead to a callback call.
+    Py_CLEAR(self->stopped_callback);
+    Py_CLEAR(self->stopped_callback_userdata);
     PyTypeObject *tp = Py_TYPE(self);
     freefunc free = PyType_GetSlot(tp, Py_tp_free);
     free(self);
@@ -1287,6 +1292,53 @@ pg_track_obj_get_3d_position(PGTrackObject *self, PyObject *null)
     return Py_BuildValue("fff", point.x, point.y, point.z);
 }
 
+static void
+pg_track_obj_stopped_callback(void *userdata, MIX_Track *track)
+{
+    PyGILState_STATE gstate = PyGILState_Ensure();
+    PGTrackObject *self = (PGTrackObject *)userdata;
+    PyObject *callback_result =
+        PyObject_CallFunctionObjArgs(self->stopped_callback, (PyObject *)self,
+                                     self->stopped_callback_userdata, NULL);
+    Py_XDECREF(callback_result);
+    if (callback_result == NULL) {  // e.g. error occurred
+        PyErr_WriteUnraisable((PyObject *)self);
+    }
+    PyGILState_Release(gstate);
+}
+
+static PyObject *
+pg_track_obj_set_stopped_callback(PGTrackObject *self, PyObject *args,
+                                  PyObject *kwargs)
+{
+    PyObject *callback, *userdata = Py_None;
+    char *keywords[] = {"callback", "userdata", NULL};
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|O", keywords, &callback,
+                                     &userdata)) {
+        return NULL;
+    }
+
+    if (Py_IsNone(callback)) {
+        MIX_SetTrackStoppedCallback(self->track, NULL, NULL);
+        Py_CLEAR(self->stopped_callback);
+        Py_CLEAR(self->stopped_callback_userdata);
+    }
+    else if (!PyCallable_Check(callback)) {
+        return RAISE(PyExc_TypeError, "callback must be callable or None");
+    }
+    else {
+        Py_CLEAR(self->stopped_callback);
+        Py_CLEAR(self->stopped_callback_userdata);
+        self->stopped_callback = Py_NewRef(callback);
+        self->stopped_callback_userdata = Py_NewRef(userdata);
+        MIX_SetTrackStoppedCallback(self->track, pg_track_obj_stopped_callback,
+                                    self);
+    }
+
+    Py_RETURN_NONE;
+}
+
 // traverse: Visit all references from an object, including its type
 static int
 pg_track_obj_traverse(PyObject *op, visitproc visit, void *arg)
@@ -1297,6 +1349,8 @@ pg_track_obj_traverse(PyObject *op, visitproc visit, void *arg)
     PGTrackObject *self = (PGTrackObject *)op;
     Py_VISIT(self->mixer_obj);
     Py_VISIT(self->source_obj);
+    Py_VISIT(self->stopped_callback);
+    Py_VISIT(self->stopped_callback_userdata);
     return 0;
 }
 
@@ -1306,6 +1360,12 @@ pg_track_obj_clear(PyObject *op)
     PGTrackObject *self = (PGTrackObject *)op;
     Py_CLEAR(self->mixer_obj);
     Py_CLEAR(self->source_obj);
+
+    /* If clearing -> dropping refs to callback stuff, lets remove the
+     * callback. */
+    MIX_SetTrackStoppedCallback(self->track, NULL, NULL);
+    Py_CLEAR(self->stopped_callback);
+    Py_CLEAR(self->stopped_callback_userdata);
     return 0;
 }
 
@@ -1356,6 +1416,8 @@ static PyMethodDef track_obj_methods[] = {
      METH_VARARGS | METH_KEYWORDS, "TODO"},
     {"get_3d_position", (PyCFunction)pg_track_obj_get_3d_position, METH_NOARGS,
      "TODO"},
+    {"set_stopped_callback", (PyCFunction)pg_track_obj_set_stopped_callback,
+     METH_VARARGS | METH_KEYWORDS, "TODO"},
     {NULL, NULL, 0, NULL}};
 
 static PyType_Slot track_slots[] = {{Py_tp_init, pg_track_obj_init},
