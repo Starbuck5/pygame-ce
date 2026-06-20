@@ -365,8 +365,28 @@ class MusicImplementation:
         self._audio: _sdl3_mixer.Audio | None = None
         self._track: _sdl3_mixer.Track | None = None
 
+        self._queued_audio: _sdl3_mixer.Audio | None = None
+        self._queued_loops = 0
+
+        self._end_event = 0
+
     def _init(self) -> None:
         self._track = _sdl3_mixer.Track(MixerInternals.mixer)
+        self._track.set_stopped_callback(self._stopped_callback)
+
+    def _stopped_callback(self, _: _sdl3_mixer.Track, __: None) -> None:
+        print("Callback")
+        return
+
+        if self._end_event and pygame.display.get_init():
+            pygame.event.post(pygame.Event(0, {}))
+
+        self._audio = self._queued_audio
+        self._queued_audio = None
+        self._queued_loops = 0
+
+        self._track.set_audio(self._audio)
+        self._track.play(loops=self._queued_loops)
 
     def load(self, filename, namehint: str = "") -> None:
         if self._track is None:
@@ -382,13 +402,15 @@ class MusicImplementation:
             raise pygame.error("mixer not initialized")
 
         self._audio = None
+        self._queued_audio = None
+        self._queued_loops = 0
         self._track.set_audio(None)
 
     def play(self, loops: int = 0, start: float = 0.0, fade_ms: int = 0) -> None:
         if self._track is None:
             raise pygame.error("mixer not initialized")
 
-        self._track.play(loops=loops, start_ms=round(start), fadein_ms=round(fade_ms))
+        self._track.play(loops=loops, start_ms=round(start*1000), fadein_ms=round(fade_ms))
 
     def rewind(self) -> None:
         if self._track is None:
@@ -453,9 +475,20 @@ class MusicImplementation:
 
         return self._track.frames_to_ms(self._track.get_playback_position())
 
-    # def queue(filename: FileLike, namehint: str = "", loops: int = 0) -> None: ...
-    # def set_endevent(event_type: int, /) -> None: ...
-    # def get_endevent() -> int: ...
+    def queue(self, filename: FileLike, namehint: str = "", loops: int = 0) -> None:
+        if self._track is None:
+            raise pygame.error("mixer not initialized")
+
+        self._queued_audio = _sdl3_mixer.Audio(
+            filename, predecode=False, preferred_mixer=MixerInternals.mixer
+        )
+        self._queued_loops = loops
+
+    def set_endevent(self, event_type: int, /) -> None:
+        self._end_event = event_type
+    
+    def get_endevent(self) -> int:
+        return self._end_event
 
     def get_metadata(
         self, filename: FileLike | None = None, namehint: str = ""
