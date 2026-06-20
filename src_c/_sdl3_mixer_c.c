@@ -826,7 +826,12 @@ pg_track_obj_get_mixer(PGTrackObject *self, PyObject *_null)
 static PyObject *
 pg_track_obj_get_playing(PGTrackObject *self, PyObject *_null)
 {
-    return PyBool_FromLong(MIX_TrackPlaying(self->track));
+    bool playing;
+    /* drop GIL to avoid deadlock, see pg_track_obj_stopped_callback */
+    Py_BEGIN_ALLOW_THREADS;
+    playing = MIX_TrackPlaying(self->track);
+    Py_END_ALLOW_THREADS;
+    return PyBool_FromLong(playing);
 }
 
 static PyObject *
@@ -1297,6 +1302,14 @@ pg_track_obj_get_3d_position(PGTrackObject *self, PyObject *null)
     return Py_BuildValue("fff", point.x, point.y, point.z);
 }
 
+/* SDL_mixer invokes this from the audio thread while holding the mixer's
+ * internal lock, and we must PyGILState_Ensure() here to call back into Python.
+ * This creates a lock-ordering hazard against the GIL: if another thread holds
+ * the GIL while blocking on the mixer lock (e.g. inside any MIX_* call), they
+ * deadlock - the audio thread holds mixer-lock and wants the GIL, the other
+ * thread holds the GIL and wants mixer-lock. To prevent this, every MIX_* call
+ * that can take the mixer lock must release the GIL (Py_BEGIN_ALLOW_THREADS)
+ * while it runs. */
 static void
 pg_track_obj_stopped_callback(void *userdata, MIX_Track *track)
 {
