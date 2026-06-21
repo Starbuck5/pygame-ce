@@ -115,7 +115,12 @@ pg_mixer_obj_play_audio(PGMixerObject *self, PyObject *args, PyObject *kwargs)
     }
     Py_DECREF(audio_type);
 
-    if (!MIX_PlayAudio(self->mixer, audio->audio)) {
+    bool ok;
+    /* drop GIL to avoid deadlock, see pg_track_obj_stopped_callback */
+    Py_BEGIN_ALLOW_THREADS;
+    ok = MIX_PlayAudio(self->mixer, audio->audio);
+    Py_END_ALLOW_THREADS;
+    if (!ok) {
         return RAISE(pgExc_SDLError, SDL_GetError());
     }
     Py_RETURN_NONE;
@@ -156,7 +161,14 @@ pg_mixer_obj_play_tag(PGMixerObject *self, PyObject *args, PyObject *kwargs)
                                           start_ms, 0, loop_start_ms, 0,
                                           fadein_ms, 0, append_silence_ms);
 
-    if (!success || !MIX_PlayTag(self->mixer, tag, options)) {
+    bool play_ok = success;
+    if (play_ok) {
+        /* drop GIL to avoid deadlock, see pg_track_obj_stopped_callback */
+        Py_BEGIN_ALLOW_THREADS;
+        play_ok = MIX_PlayTag(self->mixer, tag, options);
+        Py_END_ALLOW_THREADS;
+    }
+    if (!play_ok) {
         SDL_DestroyProperties(options);
         return RAISE(pgExc_SDLError, SDL_GetError());
     }
@@ -177,7 +189,12 @@ pg_mixer_obj_stop_tag(PGMixerObject *self, PyObject *args, PyObject *kwargs)
         return NULL;
     }
 
-    if (!MIX_StopTag(self->mixer, tag, fade_out_ms)) {
+    bool ok;
+    /* drop GIL to avoid deadlock, see pg_track_obj_stopped_callback */
+    Py_BEGIN_ALLOW_THREADS;
+    ok = MIX_StopTag(self->mixer, tag, fade_out_ms);
+    Py_END_ALLOW_THREADS;
+    if (!ok) {
         return RAISE(pgExc_SDLError, SDL_GetError());
     }
 
@@ -194,7 +211,12 @@ pg_mixer_obj_pause_tag(PGMixerObject *self, PyObject *args, PyObject *kwargs)
         return NULL;
     }
 
-    if (!MIX_PauseTag(self->mixer, tag)) {
+    bool ok;
+    /* drop GIL to avoid deadlock, see pg_track_obj_stopped_callback */
+    Py_BEGIN_ALLOW_THREADS;
+    ok = MIX_PauseTag(self->mixer, tag);
+    Py_END_ALLOW_THREADS;
+    if (!ok) {
         return RAISE(pgExc_SDLError, SDL_GetError());
     }
 
@@ -211,7 +233,12 @@ pg_mixer_obj_resume_tag(PGMixerObject *self, PyObject *args, PyObject *kwargs)
         return NULL;
     }
 
-    if (!MIX_ResumeTag(self->mixer, tag)) {
+    bool ok;
+    /* drop GIL to avoid deadlock, see pg_track_obj_stopped_callback */
+    Py_BEGIN_ALLOW_THREADS;
+    ok = MIX_ResumeTag(self->mixer, tag);
+    Py_END_ALLOW_THREADS;
+    if (!ok) {
         return RAISE(pgExc_SDLError, SDL_GetError());
     }
 
@@ -231,7 +258,12 @@ pg_mixer_obj_set_tag_gain(PGMixerObject *self, PyObject *args,
         return NULL;
     }
 
-    if (!MIX_SetTagGain(self->mixer, tag, gain)) {
+    bool ok;
+    /* drop GIL to avoid deadlock, see pg_track_obj_stopped_callback */
+    Py_BEGIN_ALLOW_THREADS;
+    ok = MIX_SetTagGain(self->mixer, tag, gain);
+    Py_END_ALLOW_THREADS;
+    if (!ok) {
         return RAISE(pgExc_SDLError, SDL_GetError());
     }
 
@@ -250,7 +282,12 @@ pg_mixer_obj_stop_all_tracks(PGMixerObject *self, PyObject *args,
         return NULL;
     }
 
-    if (!MIX_StopAllTracks(self->mixer, fade_out_ms)) {
+    bool ok;
+    /* drop GIL to avoid deadlock, see pg_track_obj_stopped_callback */
+    Py_BEGIN_ALLOW_THREADS;
+    ok = MIX_StopAllTracks(self->mixer, fade_out_ms);
+    Py_END_ALLOW_THREADS;
+    if (!ok) {
         return RAISE(pgExc_SDLError, SDL_GetError());
     }
 
@@ -260,7 +297,12 @@ pg_mixer_obj_stop_all_tracks(PGMixerObject *self, PyObject *args,
 static PyObject *
 pg_mixer_obj_pause_all_tracks(PGMixerObject *self, PyObject *_null)
 {
-    if (!MIX_PauseAllTracks(self->mixer)) {
+    bool ok;
+    /* drop GIL to avoid deadlock, see pg_track_obj_stopped_callback */
+    Py_BEGIN_ALLOW_THREADS;
+    ok = MIX_PauseAllTracks(self->mixer);
+    Py_END_ALLOW_THREADS;
+    if (!ok) {
         return RAISE(pgExc_SDLError, SDL_GetError());
     }
     Py_RETURN_NONE;
@@ -269,7 +311,12 @@ pg_mixer_obj_pause_all_tracks(PGMixerObject *self, PyObject *_null)
 static PyObject *
 pg_mixer_obj_resume_all_tracks(PGMixerObject *self, PyObject *_null)
 {
-    if (!MIX_ResumeAllTracks(self->mixer)) {
+    bool ok;
+    /* drop GIL to avoid deadlock, see pg_track_obj_stopped_callback */
+    Py_BEGIN_ALLOW_THREADS;
+    ok = MIX_ResumeAllTracks(self->mixer);
+    Py_END_ALLOW_THREADS;
+    if (!ok) {
         return RAISE(pgExc_SDLError, SDL_GetError());
     }
     Py_RETURN_NONE;
@@ -279,7 +326,12 @@ static PyObject *
 pg_mixer_obj_get_spec(PGMixerObject *self, PyObject *_null)
 {
     SDL_AudioSpec spec;
-    if (!MIX_GetMixerFormat(self->mixer, &spec)) {
+    bool ok;
+    /* drop GIL to avoid deadlock, see pg_track_obj_stopped_callback */
+    Py_BEGIN_ALLOW_THREADS;
+    ok = MIX_GetMixerFormat(self->mixer, &spec);
+    Py_END_ALLOW_THREADS;
+    if (!ok) {
         PyErr_SetString(pgExc_SDLError, SDL_GetError());
         return NULL;
     }
@@ -343,7 +395,12 @@ pg_mixer_obj_dealloc(PGMixerObject *self)
 static PyObject *
 pg_mixer_obj_get_gain(PGMixerObject *self, void *_null)
 {
-    return PyFloat_FromDouble(MIX_GetMixerGain(self->mixer));
+    float gain;
+    /* drop GIL to avoid deadlock, see pg_track_obj_stopped_callback */
+    Py_BEGIN_ALLOW_THREADS;
+    gain = MIX_GetMixerGain(self->mixer);
+    Py_END_ALLOW_THREADS;
+    return PyFloat_FromDouble(gain);
 }
 
 static int
@@ -353,7 +410,12 @@ pg_mixer_obj_set_gain(PGMixerObject *self, PyObject *value, void *_null)
     if (gain == -1.0 && PyErr_Occurred()) {
         return -1;
     }
-    if (!MIX_SetMixerGain(self->mixer, (float)gain)) {
+    bool ok;
+    /* drop GIL to avoid deadlock, see pg_track_obj_stopped_callback */
+    Py_BEGIN_ALLOW_THREADS;
+    ok = MIX_SetMixerGain(self->mixer, (float)gain);
+    Py_END_ALLOW_THREADS;
+    if (!ok) {
         PyErr_SetString(pgExc_SDLError, SDL_GetError());
         return -1;
     }
@@ -837,19 +899,34 @@ pg_track_obj_get_playing(PGTrackObject *self, PyObject *_null)
 static PyObject *
 pg_track_obj_get_paused(PGTrackObject *self, PyObject *_null)
 {
-    return PyBool_FromLong(MIX_TrackPaused(self->track));
+    bool paused;
+    /* drop GIL to avoid deadlock, see pg_track_obj_stopped_callback */
+    Py_BEGIN_ALLOW_THREADS;
+    paused = MIX_TrackPaused(self->track);
+    Py_END_ALLOW_THREADS;
+    return PyBool_FromLong(paused);
 }
 
 static PyObject *
 pg_track_obj_get_loops(PGTrackObject *self, PyObject *_null)
 {
-    return PyLong_FromLong(MIX_GetTrackLoops(self->track));
+    int loops;
+    /* drop GIL to avoid deadlock, see pg_track_obj_stopped_callback */
+    Py_BEGIN_ALLOW_THREADS;
+    loops = MIX_GetTrackLoops(self->track);
+    Py_END_ALLOW_THREADS;
+    return PyLong_FromLong(loops);
 }
 
 static PyObject *
 pg_track_obj_get_gain(PGTrackObject *self, PyObject *_null)
 {
-    return PyFloat_FromDouble(MIX_GetTrackGain(self->track));
+    float gain;
+    /* drop GIL to avoid deadlock, see pg_track_obj_stopped_callback */
+    Py_BEGIN_ALLOW_THREADS;
+    gain = MIX_GetTrackGain(self->track);
+    Py_END_ALLOW_THREADS;
+    return PyFloat_FromDouble(gain);
 }
 
 static int
@@ -859,7 +936,12 @@ pg_track_obj_set_gain(PGTrackObject *self, PyObject *value, void *_null)
     if (gain == -1.0 && PyErr_Occurred()) {
         return -1;
     }
-    if (!MIX_SetTrackGain(self->track, (float)gain)) {
+    bool ok;
+    /* drop GIL to avoid deadlock, see pg_track_obj_stopped_callback */
+    Py_BEGIN_ALLOW_THREADS;
+    ok = MIX_SetTrackGain(self->track, (float)gain);
+    Py_END_ALLOW_THREADS;
+    if (!ok) {
         PyErr_SetString(pgExc_SDLError, SDL_GetError());
         return -1;
     }
@@ -869,7 +951,11 @@ pg_track_obj_set_gain(PGTrackObject *self, PyObject *value, void *_null)
 static PyObject *
 pg_track_obj_get_freq_ratio(PGTrackObject *self, PyObject *_null)
 {
-    float ratio = MIX_GetTrackFrequencyRatio(self->track);
+    float ratio;
+    /* drop GIL to avoid deadlock, see pg_track_obj_stopped_callback */
+    Py_BEGIN_ALLOW_THREADS;
+    ratio = MIX_GetTrackFrequencyRatio(self->track);
+    Py_END_ALLOW_THREADS;
     if (ratio == 0.0f) {
         return RAISE(pgExc_SDLError, SDL_GetError());
     }
@@ -883,7 +969,12 @@ pg_track_obj_set_freq_ratio(PGTrackObject *self, PyObject *value, void *_null)
     if (ratio == -1.0 && PyErr_Occurred()) {
         return -1;
     }
-    if (!MIX_SetTrackFrequencyRatio(self->track, (float)ratio)) {
+    bool ok;
+    /* drop GIL to avoid deadlock, see pg_track_obj_stopped_callback */
+    Py_BEGIN_ALLOW_THREADS;
+    ok = MIX_SetTrackFrequencyRatio(self->track, (float)ratio);
+    Py_END_ALLOW_THREADS;
+    if (!ok) {
         PyErr_SetString(pgExc_SDLError, SDL_GetError());
         return -1;
     }
@@ -917,7 +1008,12 @@ pg_track_obj_set_audio(PGTrackObject *self, PyObject *args, PyObject *kwargs)
     }
     Py_DECREF(audio_type);
 
-    if (!MIX_SetTrackAudio(self->track, audio)) {
+    bool ok;
+    /* drop GIL to avoid deadlock, see pg_track_obj_stopped_callback */
+    Py_BEGIN_ALLOW_THREADS;
+    ok = MIX_SetTrackAudio(self->track, audio);
+    Py_END_ALLOW_THREADS;
+    if (!ok) {
         return RAISE(pgExc_SDLError, SDL_GetError());
     }
 
@@ -936,7 +1032,12 @@ pg_track_obj_set_audio(PGTrackObject *self, PyObject *args, PyObject *kwargs)
 static PyObject *
 pg_track_obj_get_audio(PGTrackObject *self, PyObject *_null)
 {
-    if (MIX_GetTrackAudio(self->track) != NULL) {
+    MIX_Audio *audio;
+    /* drop GIL to avoid deadlock, see pg_track_obj_stopped_callback */
+    Py_BEGIN_ALLOW_THREADS;
+    audio = MIX_GetTrackAudio(self->track);
+    Py_END_ALLOW_THREADS;
+    if (audio != NULL) {
         // This track object owns an audio, therefore our source object must
         // be non-null, and an audio object.
         return Py_NewRef(self->source_obj);
@@ -974,7 +1075,12 @@ pg_track_obj_set_audiostream(PGTrackObject *self, PyObject *args,
         Py_DECREF(as_state);  // PyObject_GetAttrString gives new ref
     }
 
-    if (!MIX_SetTrackAudioStream(self->track, stream)) {
+    bool ok;
+    /* drop GIL to avoid deadlock, see pg_track_obj_stopped_callback */
+    Py_BEGIN_ALLOW_THREADS;
+    ok = MIX_SetTrackAudioStream(self->track, stream);
+    Py_END_ALLOW_THREADS;
+    if (!ok) {
         return RAISE(pgExc_SDLError, SDL_GetError());
     }
 
@@ -993,7 +1099,12 @@ pg_track_obj_set_audiostream(PGTrackObject *self, PyObject *args,
 static PyObject *
 pg_track_obj_get_audiostream(PGTrackObject *self, PyObject *_null)
 {
-    if (MIX_GetTrackAudioStream(self->track) != NULL) {
+    SDL_AudioStream *stream;
+    /* drop GIL to avoid deadlock, see pg_track_obj_stopped_callback */
+    Py_BEGIN_ALLOW_THREADS;
+    stream = MIX_GetTrackAudioStream(self->track);
+    Py_END_ALLOW_THREADS;
+    if (stream != NULL) {
         // This track object owns an audio, therefore our source object must
         // be non-null, and an audio object.
         return Py_NewRef(self->source_obj);
@@ -1018,7 +1129,12 @@ pg_track_obj_set_filestream(PGTrackObject *self, PyObject *args,
         return NULL;
     }
 
-    if (!MIX_SetTrackIOStream(self->track, io, true)) {
+    bool ok;
+    /* drop GIL to avoid deadlock, see pg_track_obj_stopped_callback */
+    Py_BEGIN_ALLOW_THREADS;
+    ok = MIX_SetTrackIOStream(self->track, io, true);
+    Py_END_ALLOW_THREADS;
+    if (!ok) {
         SDL_CloseIO(io);
         return RAISE(pgExc_SDLError, SDL_GetError());
     }
@@ -1076,7 +1192,14 @@ pg_track_obj_play(PGTrackObject *self, PyObject *args, PyObject *kwargs)
         loop_start_frame, loop_start_ms, fadein_frames, fadein_ms,
         append_silence_frames, append_silence_ms);
 
-    if (!success || !MIX_PlayTrack(self->track, options)) {
+    bool play_ok = success;
+    if (play_ok) {
+        /* drop GIL to avoid deadlock, see pg_track_obj_stopped_callback */
+        Py_BEGIN_ALLOW_THREADS;
+        play_ok = MIX_PlayTrack(self->track, options);
+        Py_END_ALLOW_THREADS;
+    }
+    if (!play_ok) {
         SDL_DestroyProperties(options);
         return RAISE(pgExc_SDLError, SDL_GetError());
     }
@@ -1095,7 +1218,12 @@ pg_track_obj_add_tag(PGTrackObject *self, PyObject *args, PyObject *kwargs)
         return NULL;
     }
 
-    if (!MIX_TagTrack(self->track, tag)) {
+    bool ok;
+    /* drop GIL to avoid deadlock, see pg_track_obj_stopped_callback */
+    Py_BEGIN_ALLOW_THREADS;
+    ok = MIX_TagTrack(self->track, tag);
+    Py_END_ALLOW_THREADS;
+    if (!ok) {
         return RAISE(pgExc_SDLError, SDL_GetError());
     }
     Py_RETURN_NONE;
@@ -1111,7 +1239,10 @@ pg_track_obj_remove_tag(PGTrackObject *self, PyObject *args, PyObject *kwargs)
         return NULL;
     }
 
+    /* drop GIL to avoid deadlock, see pg_track_obj_stopped_callback */
+    Py_BEGIN_ALLOW_THREADS;
     MIX_UntagTrack(self->track, tag);  // no error return!
+    Py_END_ALLOW_THREADS;
     Py_RETURN_NONE;
 }
 
@@ -1127,7 +1258,12 @@ pg_track_obj_set_playback_position(PGTrackObject *self, PyObject *args,
         return NULL;
     }
 
-    if (!MIX_SetTrackPlaybackPosition(self->track, frame_position)) {
+    bool ok;
+    /* drop GIL to avoid deadlock, see pg_track_obj_stopped_callback */
+    Py_BEGIN_ALLOW_THREADS;
+    ok = MIX_SetTrackPlaybackPosition(self->track, frame_position);
+    Py_END_ALLOW_THREADS;
+    if (!ok) {
         return RAISE(pgExc_SDLError, SDL_GetError());
     }
 
@@ -1137,7 +1273,11 @@ pg_track_obj_set_playback_position(PGTrackObject *self, PyObject *args,
 static PyObject *
 pg_track_obj_get_playback_position(PGTrackObject *self, PyObject *null)
 {
-    int64_t frame_position = MIX_GetTrackPlaybackPosition(self->track);
+    int64_t frame_position;
+    /* drop GIL to avoid deadlock, see pg_track_obj_stopped_callback */
+    Py_BEGIN_ALLOW_THREADS;
+    frame_position = MIX_GetTrackPlaybackPosition(self->track);
+    Py_END_ALLOW_THREADS;
     if (frame_position == -1) {
         return RAISE(pgExc_SDLError, SDL_GetError());
     }
@@ -1148,7 +1288,11 @@ pg_track_obj_get_playback_position(PGTrackObject *self, PyObject *null)
 static PyObject *
 pg_track_obj_get_remaining_frames(PGTrackObject *self, PyObject *null)
 {
-    int64_t remaining = MIX_GetTrackRemaining(self->track);
+    int64_t remaining;
+    /* drop GIL to avoid deadlock, see pg_track_obj_stopped_callback */
+    Py_BEGIN_ALLOW_THREADS;
+    remaining = MIX_GetTrackRemaining(self->track);
+    Py_END_ALLOW_THREADS;
 
     // If unknown, return None
     if (remaining == -1) {
@@ -1169,7 +1313,11 @@ pg_track_obj_ms_to_frames(PGTrackObject *self, PyObject *args,
         return NULL;
     }
 
-    int64_t frames = MIX_TrackMSToFrames(self->track, ms);
+    int64_t frames;
+    /* drop GIL to avoid deadlock, see pg_track_obj_stopped_callback */
+    Py_BEGIN_ALLOW_THREADS;
+    frames = MIX_TrackMSToFrames(self->track, ms);
+    Py_END_ALLOW_THREADS;
     if (frames == -1 && ms >= 0) {
         return RAISE(pgExc_SDLError, SDL_GetError());
     }
@@ -1188,7 +1336,11 @@ pg_track_obj_frames_to_ms(PGTrackObject *self, PyObject *args,
         return NULL;
     }
 
-    int64_t ms = MIX_TrackFramesToMS(self->track, frames);
+    int64_t ms;
+    /* drop GIL to avoid deadlock, see pg_track_obj_stopped_callback */
+    Py_BEGIN_ALLOW_THREADS;
+    ms = MIX_TrackFramesToMS(self->track, frames);
+    Py_END_ALLOW_THREADS;
     if (ms == -1 && frames >= 0) {
         return RAISE(pgExc_SDLError, SDL_GetError());
     }
@@ -1207,7 +1359,12 @@ pg_track_obj_stop(PGTrackObject *self, PyObject *args, PyObject *kwargs)
         return NULL;
     }
 
-    if (!MIX_StopTrack(self->track, fade_out_frames)) {
+    bool ok;
+    /* drop GIL to avoid deadlock, see pg_track_obj_stopped_callback */
+    Py_BEGIN_ALLOW_THREADS;
+    ok = MIX_StopTrack(self->track, fade_out_frames);
+    Py_END_ALLOW_THREADS;
+    if (!ok) {
         return RAISE(pgExc_SDLError, SDL_GetError());
     }
     Py_RETURN_NONE;
@@ -1216,7 +1373,12 @@ pg_track_obj_stop(PGTrackObject *self, PyObject *args, PyObject *kwargs)
 static PyObject *
 pg_track_obj_pause(PGTrackObject *self, PyObject *null)
 {
-    if (!MIX_PauseTrack(self->track)) {
+    bool ok;
+    /* drop GIL to avoid deadlock, see pg_track_obj_stopped_callback */
+    Py_BEGIN_ALLOW_THREADS;
+    ok = MIX_PauseTrack(self->track);
+    Py_END_ALLOW_THREADS;
+    if (!ok) {
         return RAISE(pgExc_SDLError, SDL_GetError());
     }
     Py_RETURN_NONE;
@@ -1225,7 +1387,12 @@ pg_track_obj_pause(PGTrackObject *self, PyObject *null)
 static PyObject *
 pg_track_obj_resume(PGTrackObject *self, PyObject *null)
 {
-    if (!MIX_ResumeTrack(self->track)) {
+    bool ok;
+    /* drop GIL to avoid deadlock, see pg_track_obj_stopped_callback */
+    Py_BEGIN_ALLOW_THREADS;
+    ok = MIX_ResumeTrack(self->track);
+    Py_END_ALLOW_THREADS;
+    if (!ok) {
         return RAISE(pgExc_SDLError, SDL_GetError());
     }
     Py_RETURN_NONE;
@@ -1253,7 +1420,12 @@ pg_track_obj_set_stereo(PGTrackObject *self, PyObject *args, PyObject *kwargs)
         gains_p = &gains;
     }
 
-    if (!MIX_SetTrackStereo(self->track, gains_p)) {
+    bool ok;
+    /* drop GIL to avoid deadlock, see pg_track_obj_stopped_callback */
+    Py_BEGIN_ALLOW_THREADS;
+    ok = MIX_SetTrackStereo(self->track, gains_p);
+    Py_END_ALLOW_THREADS;
+    if (!ok) {
         return RAISE(pgExc_SDLError, SDL_GetError());
     }
 
@@ -1283,7 +1455,12 @@ pg_track_obj_set_3d_position(PGTrackObject *self, PyObject *args,
         point_p = &point;
     }
 
-    if (!MIX_SetTrack3DPosition(self->track, point_p)) {
+    bool ok;
+    /* drop GIL to avoid deadlock, see pg_track_obj_stopped_callback */
+    Py_BEGIN_ALLOW_THREADS;
+    ok = MIX_SetTrack3DPosition(self->track, point_p);
+    Py_END_ALLOW_THREADS;
+    if (!ok) {
         return RAISE(pgExc_SDLError, SDL_GetError());
     }
 
@@ -1295,7 +1472,12 @@ pg_track_obj_get_3d_position(PGTrackObject *self, PyObject *null)
 {
     MIX_Point3D point;
 
-    if (!MIX_GetTrack3DPosition(self->track, &point)) {
+    bool ok;
+    /* drop GIL to avoid deadlock, see pg_track_obj_stopped_callback */
+    Py_BEGIN_ALLOW_THREADS;
+    ok = MIX_GetTrack3DPosition(self->track, &point);
+    Py_END_ALLOW_THREADS;
+    if (!ok) {
         return RAISE(pgExc_SDLError, SDL_GetError());
     }
 
@@ -1338,7 +1520,10 @@ pg_track_obj_set_stopped_callback(PGTrackObject *self, PyObject *args,
     }
 
     if (Py_IsNone(callback)) {
+        /* drop GIL to avoid deadlock, see pg_track_obj_stopped_callback */
+        Py_BEGIN_ALLOW_THREADS;
         MIX_SetTrackStoppedCallback(self->track, NULL, NULL);
+        Py_END_ALLOW_THREADS;
         Py_CLEAR(self->stopped_callback);
         Py_CLEAR(self->stopped_callback_userdata);
     }
@@ -1350,8 +1535,11 @@ pg_track_obj_set_stopped_callback(PGTrackObject *self, PyObject *args,
         Py_CLEAR(self->stopped_callback_userdata);
         self->stopped_callback = Py_NewRef(callback);
         self->stopped_callback_userdata = Py_NewRef(userdata);
+        /* drop GIL to avoid deadlock, see pg_track_obj_stopped_callback */
+        Py_BEGIN_ALLOW_THREADS;
         MIX_SetTrackStoppedCallback(self->track, pg_track_obj_stopped_callback,
                                     self);
+        Py_END_ALLOW_THREADS;
     }
 
     Py_RETURN_NONE;
