@@ -1,4 +1,5 @@
 import math
+from typing import Any
 
 import pygame
 from pygame import _audio, _sdl3_mixer
@@ -50,10 +51,17 @@ class MixerInternals:
     allow_channels_change = 0x4
 
     initialized = False
+    # All Sound() audio is loaded into this format, if different than actual
+    # mixer.spec it will be converted by SDL_mixer at runtime.
+    mixer_buf_spec: _audio.AudioSpec | None = None
     mixer: _sdl3_mixer.Mixer | None = None
     channels: list["Channel"] = []
     reserved_channels = 0
     soundfount: str | None = None
+
+    def init_check():
+        if not MixerInternals.initialized:
+            raise pygame.error("mixer not initialized")
 
 
 def init(
@@ -114,6 +122,7 @@ def init(
     # TODO: driver envs
 
     _sdl3_mixer.init()
+    _audio.init()
 
     mixer_spec = _audio.AudioSpec(fmt, channels, frequency)
 
@@ -128,6 +137,7 @@ def init(
             mixer_device = potential_devices[0]
 
     MixerInternals.initialized = True
+    MixerInternals.mixer_buf_spec = mixer_spec
     MixerInternals.mixer = _sdl3_mixer.Mixer(mixer_device, mixer_spec)
     MixerInternals.channels = [Channel(i) for i in range(8)]
     MixerInternals.reserved_channels = 0
@@ -181,7 +191,7 @@ def get_init() -> tuple[int, int, int]:
     if not MixerInternals.initialized:
         return None
 
-    mix_spec = MixerInternals.mixer.spec
+    mix_spec = MixerInternals.mixer_buf_spec
     realform = (
         -mix_spec.format.bitsize
         if mix_spec.format.is_signed
@@ -192,6 +202,7 @@ def get_init() -> tuple[int, int, int]:
 
 
 def get_driver() -> str:
+    MixerInternals.init_check()
     return _audio.get_current_driver()
 
 
@@ -205,7 +216,9 @@ def set_num_channels(count: int, /) -> None:
     if len(channels) > count:
         channels = channels[:count]
     else:
-        channels += [Channel(i + count) for i in range(count)]
+        channels += [Channel(i + count) for i in range(count - len(channels))]
+
+    MixerInternals.channels = channels
 
 
 def get_num_channels() -> int:
@@ -233,6 +246,12 @@ def set_reserved(count: int, /) -> int:
 def set_soundfont(paths: str | None = None, /) -> None:
     # TODO: thread this through SDL_mixer.decoder.fluidsynth.soundfont_path
     # on load
+    if paths is not None and not isinstance(paths, str):
+        raise TypeError("Must pass string or None to set_soundfont")
+
+    if paths == "":
+        paths = None
+
     MixerInternals.soundfount = paths
 
 
@@ -244,15 +263,133 @@ get_sdl_mixer_version = _sdl3_mixer.get_sdl_mixer_version
 
 
 class Sound:
-    def __init__(self, file) -> None:
-        if MixerInternals.mixer is None:
-            raise pygame.error("mixer not initialized")
+    def __init__(self, *args, **kwargs) -> None:
+        MixerInternals.init_check()
 
-        self._audio = _sdl3_mixer.Audio(
-            file, predecode=True, preferred_mixer=MixerInternals.mixer
+        obj = None
+        file = None
+        buffer = None
+        array = None
+
+        audio_buffer = None
+
+        if args:
+            if kwargs or len(args) != 1:
+                raise TypeError("Sound takes either 1 positional or 1 keyword argument")
+            obj = args[0]
+
+            if isinstance(obj, str) or hasattr(obj, "__fspath__"):
+                file = obj
+                obj = None
+            else:
+                file = obj
+                buffer = obj
+        elif kwargs:
+            if len(kwargs) != 1:
+                raise TypeError("Sound takes either 1 positional or 1 keyword argument")
+            file = kwargs.get("file")
+            buffer = kwargs.get("buffer")
+            array = kwargs.get("array")
+            if file is None and buffer is None and array is None:
+                raise TypeError(f"Unrecognized keyword argument '{next(iter(kwargs))}'")
+            if isinstance(buffer, str):
+                raise TypeError("Unicode object not allowed as buffer object")
+        else:
+            raise TypeError("Sound takes either 1 positional or 1 keyword argument")
+
+        if file is not None:
+            audio_decoder = None
+            try:
+                audio_decoder = _sdl3_mixer.AudioDecoder(file)
+            except Exception as e:
+                # use 'buffer' as fallback for single arg
+                if obj is None:
+                    raise e
+
+            if audio_decoder is not None:
+                audio_buffer = audio_decoder.decode(MixerInternals.mixer_buf_spec)
+
+        if audio_buffer is None and buffer is not None:
+            memory_viewed = False
+            try:
+                audio_buffer = memoryview(buffer)
+                memory_viewed = True
+            except TypeError:
+                if obj is not None:
+                    pass
+                else:
+                    raise TypeError(f"Expected object with buffer interface: got a {type(buffer).__name__}")
+            
+            if memory_viewed:
+                audio_buffer = bytes(audio_buffer)
+
+        if audio_buffer is None and array is not None:
+            audio_buffer = self._buf_from_array(array)
+
+        if audio_buffer is None:
+            if obj is None:
+                raise TypeError("Unrecognized argument")
+            else:
+                raise TypeError(f"Unrecognized argument (type {type(obj).__name__})")
+
+        self._buffer = audio_buffer
+        self._audio = _sdl3_mixer.Audio.from_raw(
+            self._buffer, MixerInternals.mixer_buf_spec, MixerInternals.mixer
         )
+
         self._tag = str(id(self))
         self._volume = 1.0
+
+    def _buf_from_array(self, array) -> bytes:
+        """This is based on mixer.c _chunk_from_array, which comes with its
+        own warning:
+        TODO: This is taken from _numericsndarray without additions.
+        * So this should be extended to properly handle integer sign
+        * and byte order. These changes will not be backward compatible.
+        """
+
+        channels = MixerInternals.mixer_buf_spec.channels
+        itemsize = MixerInternals.mixer_buf_spec.format.bytesize
+
+        mv = memoryview(bytes(array))
+
+        if channels == 1:
+            if mv.ndim != 1:
+                raise ValueError("Array must be 1-dimensional for mono mixer")
+        else:
+            if mv.ndim != 2:
+                raise ValueError("Array must be 2-dimensional for stereo mixer")
+            if mv.shape[1] != channels:
+                raise ValueError("Array depth must match number of mixer channels")
+
+        if mv.itemsize not in (1, 2, 4):
+            raise ValueError(f"Unsupported integer size {mv.itemsize}")
+
+        # Reinterpret raw memory as native-endian unsigned words, flattened row-major
+        # (matches the *(Uint8/16/32 *) reads; sign/endian ignored, per the C TODO).
+        ucode = {1: "B", 2: "H", 4: "I"}[mv.itemsize]
+        samples = mv.cast("B").cast(ucode)  # flat unsigned words
+
+        if itemsize == 1:
+            out = bytearray(len(samples))
+            for i, v in enumerate(samples):
+                out[i] = v & 0xFF  # low byte
+        # following C implementation, we assume 16 bit (2 byte) here even though
+        # it could be 32 bit as well.
+        elif mv.itemsize == 1:
+            out = bytearray(len(samples) * 2)
+            ov = memoryview(out).cast("H")
+            for i, v in enumerate(samples):
+                # promote 8 bit to 16 bit in special case
+                ov[i] = (v << 8) & 0xFFFF
+        else:
+            out = bytearray(len(samples) * 2)
+            ov = memoryview(out).cast("H")
+            for i, v in enumerate(samples):
+                # convert 2/4 byte values to 2 bytes
+                ov[i] = v & 0xFFFF
+
+        return bytes(out)
 
     def play(
         self,
@@ -260,6 +397,7 @@ class Sound:
         maxtime: int = -1,
         fade_ms: int = -1,
     ) -> "Channel":
+        MixerInternals.init_check()
         selected_channel: Channel | None = None
 
         # TODO lock
@@ -275,26 +413,125 @@ class Sound:
         return selected_channel
 
     def stop(self) -> None:
+        MixerInternals.init_check()
         MixerInternals.mixer.stop_tag(self._tag)
 
     def fadeout(self, time: int, /) -> None:
+        MixerInternals.init_check()
         MixerInternals.mixer.stop_tag(self._tag, time)
 
     def set_volume(self, value: float, /) -> None:
+        MixerInternals.init_check()
+
+        # value < 0 won't change volume
+        if value < 0.0:
+            return
+
+        # SDL3_mixer supports boosting gain, but Sound didn't,
+        # so lets be consistent.
+        if value > 1.0:
+            value = 1.0
+
         self._volume = value
         MixerInternals.mixer.set_tag_gain(self._tag, value)
 
     def get_volume(self) -> float:
+        MixerInternals.init_check()
         return self._volume
 
     def get_length(self) -> float:
-        return float(self._audio.duration_ms) / 1000
+        MixerInternals.init_check()
+
+        # Why not just use float(self._audio.duration_ms) / 1000 ?
+        # The existing test wants it to be higher precision than integer
+        # milliseconds.
+        return self._audio.duration_frames / MixerInternals.mixer_buf_spec.frequency
+
+    def get_raw(self) -> bytes:
+        MixerInternals.init_check()
+        return self._buffer
+
+    def copy(self):
+        MixerInternals.init_check()
+        new_sound = self.__class__(buffer=self._buffer)
+        new_sound.set_volume(self.get_volume())
+        return new_sound
+
+    def __copy__(self):
+        return self.copy()
+
+    def get_num_channels(self):
+        MixerInternals.init_check()
+        return sum(
+            1 for channel in MixerInternals.channels if channel.get_sound() == self
+        )
+
+    @property
+    def _samples_address(self) -> int:
+        MixerInternals.init_check()
+        return pygame.BufferProxy(self._buffer).__array_interface__["data"][0]
+
+    @property
+    def __array_interface__(self) -> dict[str, Any]:
+        audio_spec = self._audio.spec
+        audio_format = audio_spec.format
+
+        channels = audio_spec.channels
+        itemsize = audio_format.bytesize
+
+        if channels > 1:
+            shape = (self._audio.duration_frames, channels)
+            strides = (channels * itemsize, itemsize)
+        else:
+            shape = (self._audio.duration_frames,)
+            strides = (itemsize,)
+
+        if audio_format.is_int and audio_format.is_signed:
+            typekind = "i"
+        elif audio_format.is_int and audio_format.is_unsigned:
+            typekind = "u"
+        elif audio_format.is_float:
+            typekind = "f"
+        else:
+            raise pygame.error(
+                f"Pygame bug (mixer.Sound): unknown mixer format {audio_format}"
+            )
+
+        if itemsize == 1:
+            byteorder = "|"
+        elif audio_format.is_big_endian:
+            byteorder = ">"
+        elif audio_format.is_little_endian:
+            byteorder = "<"
+        else:
+            raise pygame.error(
+                f"Pygame bug (mixer.Sound): unknown mixer format {audio_format}"
+            )
+
+        return {
+            "version": 3,
+            "typestr": f"{byteorder}{typekind}{itemsize}",
+            "shape": shape,
+            "strides": strides,
+            "data": (
+                pygame.BufferProxy(self._buffer).__array_interface__["data"][0],
+                False,
+            ),
+        }
+
+    def __bytes__(self):
+        return self._buffer
 
 
 class Channel:
     def __init__(self, id: int) -> None:
         if not MixerInternals.initialized:
             raise pygame.error("mixer not initialized")
+
+        if id < 0:
+            raise IndexError("invalid channel index")
+        # TODO: user side should not be able to construct random channels,
+        # this should return preallocated from channels bank.
 
         self._id = id
         self._track = _sdl3_mixer.Track(MixerInternals.mixer)
@@ -332,6 +569,10 @@ class Channel:
         self._track.stop(fade_out_frames=self.track.ms_to_frames(time))
 
     def set_source_location(self, angle: float, distance: float, /) -> None:
+        distance = round(distance)
+        if distance < 0.0 or distance >= 256.0:
+            raise ValueError("distance out of range, expected (0, 255)")
+
         x = math.sin(angle) * distance
         z = math.cos(angle) * distance
         self._track.set_3d_position((x, 0, z))
@@ -381,10 +622,10 @@ class MusicImplementation:
         if self._queued_audio is not None:
             self._audio = self._queued_audio
             self._queued_audio = None
-            
+
             self._track.set_audio(self._audio)
             self._track.play(loops=self._queued_loops)
-            
+
             self._queued_loops = 0
 
     def load(self, filename, namehint: str = "") -> None:
@@ -413,7 +654,9 @@ class MusicImplementation:
         if self._track is None:
             raise pygame.error("mixer not initialized")
 
-        self._track.play(loops=loops, start_ms=round(start*1000), fadein_ms=round(fade_ms))
+        self._track.play(
+            loops=loops, start_ms=round(start * 1000), fadein_ms=round(fade_ms)
+        )
 
     def rewind(self) -> None:
         if self._track is None:
@@ -489,7 +732,7 @@ class MusicImplementation:
 
     def set_endevent(self, event_type: int, /) -> None:
         self._end_event = event_type
-    
+
     def get_endevent(self) -> int:
         return self._end_event
 
