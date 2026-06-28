@@ -375,18 +375,17 @@ class MusicImplementation:
         self._track.set_stopped_callback(self._stopped_callback)
 
     def _stopped_callback(self, _: _sdl3_mixer.Track, __: None) -> None:
-        print("Callback")
-        return
-
         if self._end_event and pygame.display.get_init():
             pygame.event.post(pygame.Event(0, {}))
 
-        self._audio = self._queued_audio
-        self._queued_audio = None
-        self._queued_loops = 0
-
-        self._track.set_audio(self._audio)
-        self._track.play(loops=self._queued_loops)
+        if self._queued_audio is not None:
+            self._audio = self._queued_audio
+            self._queued_audio = None
+            
+            self._track.set_audio(self._audio)
+            self._track.play(loops=self._queued_loops)
+            
+            self._queued_loops = 0
 
     def load(self, filename, namehint: str = "") -> None:
         if self._track is None:
@@ -396,6 +395,10 @@ class MusicImplementation:
             filename, predecode=False, preferred_mixer=MixerInternals.mixer
         )
         self._track.set_audio(self._audio)
+
+        # Reset old queue state on fresh load
+        self._queued_audio = None
+        self._queued_loops = 0
 
     def unload(self) -> None:
         if self._track is None:
