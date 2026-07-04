@@ -139,7 +139,7 @@ def init(
     MixerInternals.initialized = True
     MixerInternals.mixer_buf_spec = mixer_spec
     MixerInternals.mixer = _sdl3_mixer.Mixer(mixer_device, mixer_spec)
-    MixerInternals.channels = [Channel(i) for i in range(8)]
+    MixerInternals.channels = [Channel._allocate(i) for i in range(8)]
     MixerInternals.reserved_channels = 0
 
     music._init()
@@ -216,7 +216,9 @@ def set_num_channels(count: int, /) -> None:
     if len(channels) > count:
         channels = channels[:count]
     else:
-        channels += [Channel(i + count) for i in range(count - len(channels))]
+        channels = channels + [
+            Channel._allocate(i) for i in range(len(channels), count)
+        ]
 
     MixerInternals.channels = channels
 
@@ -241,6 +243,17 @@ def set_reserved(count: int, /) -> int:
 
     MixerInternals.reserved_channels = count
     return count
+
+
+def find_channel(force: bool = False):
+    # TODO lock?
+    for channel in MixerInternals.channels:
+        if not channel.get_busy():
+            return channel
+
+    if force:
+        return sorted(MixerInternals.channels, key=lambda ch: ch._start_time)[0]
+    return None
 
 
 def set_soundfont(paths: str | None = None, /) -> None:
@@ -318,8 +331,10 @@ class Sound:
                 if obj is not None:
                     pass
                 else:
-                    raise TypeError(f"Expected object with buffer interface: got a {type(buffer).__name__}")
-            
+                    raise TypeError(
+                        f"Expected object with buffer interface: got a {type(buffer).__name__}"
+                    )
+
             if memory_viewed:
                 audio_buffer = bytes(audio_buffer)
 
@@ -524,18 +539,36 @@ class Sound:
 
 
 class Channel:
-    def __init__(self, id: int) -> None:
+    def __new__(cls, id: int) -> "Channel":
+        # Users don't construct channels, they retrieve one out of the
+        # preallocated MixerInternals.channels pool by index. The real
+        # allocation happens in _allocate (used internally by the mixer).
         if not MixerInternals.initialized:
             raise pygame.error("mixer not initialized")
 
-        if id < 0:
+        channels = MixerInternals.channels
+        if not isinstance(id, int):
+            raise TypeError(
+                f"'{type(id).__name__}'object cannot be interpreted as an integer"
+            )
+        if id < 0 or id >= len(channels):
             raise IndexError("invalid channel index")
-        # TODO: user side should not be able to construct random channels,
-        # this should return preallocated from channels bank.
 
+        return channels[id]
+
+    def __init__(self, id: int) -> None:
+        # __new__ returns an already-initialized channel from the pool, so
+        # the public Channel(id) path must not re-initialize it.
+        pass
+
+    @classmethod
+    def _allocate(cls, id: int) -> "Channel":
+        self = object.__new__(cls)
         self._id = id
         self._track = _sdl3_mixer.Track(MixerInternals.mixer)
         self._sound = None
+        self._start_time = 0
+        return self
 
     @property
     def id(self) -> int:
@@ -555,6 +588,7 @@ class Channel:
         self._track.set_audio(sound._audio)
         self._track.add_tag(sound._tag)
         self._track.play(loops=loops, max_ms=maxtime, fadein_ms=fade_ms)
+        self._start_time = pygame.time.get_ticks()
 
     def stop(self) -> None:
         self._track.stop()
