@@ -429,11 +429,15 @@ class Sound:
 
     def stop(self) -> None:
         MixerInternals.init_check()
-        MixerInternals.mixer.stop_tag(self._tag)
+        for channel in MixerInternals.channels:
+            if channel.get_sound() is self:
+                channel.stop()
 
     def fadeout(self, time: int, /) -> None:
         MixerInternals.init_check()
-        MixerInternals.mixer.stop_tag(self._tag, time)
+        for channel in MixerInternals.channels:
+            if channel.get_sound() is self:
+                channel.fadeout(time)
 
     def set_volume(self, value: float, /) -> None:
         MixerInternals.init_check()
@@ -478,7 +482,7 @@ class Sound:
     def get_num_channels(self):
         MixerInternals.init_check()
         return sum(
-            1 for channel in MixerInternals.channels if channel.get_sound() == self
+            1 for channel in MixerInternals.channels if channel.get_sound() is self
         )
 
     @property
@@ -566,9 +570,14 @@ class Channel:
         self = object.__new__(cls)
         self._id = id
         self._track = _sdl3_mixer.Track(MixerInternals.mixer)
+        self._track.set_stopped_callback(self._stopped_callback)
         self._sound = None
         self._start_time = 0
         return self
+    
+    def _stopped_callback(self, _: _sdl3_mixer.Track, __: None) -> None:
+        # Be sure to set the sound back to None when it's done playing!
+        self._sound = None
 
     @property
     def id(self) -> int:
