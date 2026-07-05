@@ -865,14 +865,10 @@ pg_track_obj_init(PGTrackObject *self, PyObject *args, PyObject *kwargs)
 static void
 pg_track_obj_dealloc(PGTrackObject *self)
 {
-    MIX_DestroyTrack(self->track);
-    self->track = NULL;
+    // Most "dealloc" stuff handled in clear, because it needs to free SDL
+    // resources while dropping references to mixer, potentially to source
+    // obj.
     PyObject_GC_UnTrack(self);
-    Py_CLEAR(self->mixer_obj);
-    Py_CLEAR(self->source_obj);
-    // MIX_DestroyTrack will not lead to a callback call.
-    Py_CLEAR(self->stopped_callback);
-    Py_CLEAR(self->stopped_callback_userdata);
     PyTypeObject *tp = Py_TYPE(self);
     freefunc free = PyType_GetSlot(tp, Py_tp_free);
     free(self);
@@ -1564,14 +1560,18 @@ static int
 pg_track_obj_clear(PyObject *op)
 {
     PGTrackObject *self = (PGTrackObject *)op;
-    Py_CLEAR(self->mixer_obj);
-    Py_CLEAR(self->source_obj);
 
     /* If clearing -> dropping refs to callback stuff, lets remove the
      * callback. */
     MIX_SetTrackStoppedCallback(self->track, NULL, NULL);
     Py_CLEAR(self->stopped_callback);
     Py_CLEAR(self->stopped_callback_userdata);
+
+    MIX_DestroyTrack(self->track);
+    self->track = NULL;
+    Py_CLEAR(self->mixer_obj);
+    Py_CLEAR(self->source_obj);
+
     return 0;
 }
 

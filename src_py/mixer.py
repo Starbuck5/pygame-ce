@@ -185,6 +185,7 @@ def quit() -> None:
     MixerInternals.initialized = False
     MixerInternals.mixer = None
     MixerInternals.channels = []
+    music._quit()
 
 
 def get_init() -> tuple[int, int, int]:
@@ -657,6 +658,15 @@ class MusicImplementation:
     def _init(self) -> None:
         self._track = _sdl3_mixer.Track(MixerInternals.mixer)
         self._track.set_stopped_callback(self._stopped_callback)
+
+    def _quit(self) -> None:
+        self._audio: _sdl3_mixer.Audio | None = None
+        self._track: _sdl3_mixer.Track | None = None
+
+        self._queued_audio: _sdl3_mixer.Audio | None = None
+        self._queued_loops = 0
+
+        self._end_event = 0
 
     def _stopped_callback(self, _: _sdl3_mixer.Track, __: None) -> None:
         if self._end_event and pygame.display.get_init():
