@@ -6,6 +6,10 @@
 // Useful heap type example @
 // https://github.com/python/cpython/blob/main/Modules/xxlimited.c
 
+// TODO: do a pass over things here and in audio with the understanding
+// from https://docs.python.org/3/c-api/lifecycle.html that tp_clear is not
+// always called, and that it's normal for dealloc to call clear.
+
 // ***************************************************************************
 // OVERALL DEFINITIONS
 // ***************************************************************************
@@ -862,13 +866,19 @@ pg_track_obj_init(PGTrackObject *self, PyObject *args, PyObject *kwargs)
     return 0;
 }
 
+static int
+pg_track_obj_clear(PyObject *op);
+
 static void
 pg_track_obj_dealloc(PGTrackObject *self)
 {
-    // Most "dealloc" stuff handled in clear, because it needs to free SDL
-    // resources while dropping references to mixer, potentially to source
-    // obj.
+    // Most "dealloc" stuff is handled in clear, because it needs to free SDL
+    // resources while dropping references to the mixer (and potentially the
+    // source obj). tp_clear is NOT called automatically on the normal
+    // (non-cyclic) refcount-zero path, so we must call it explicitly here or
+    // the SDL track and all held references would leak.
     PyObject_GC_UnTrack(self);
+    pg_track_obj_clear((PyObject *)self);
     PyTypeObject *tp = Py_TYPE(self);
     freefunc free = PyType_GetSlot(tp, Py_tp_free);
     free(self);
@@ -1561,14 +1571,23 @@ pg_track_obj_clear(PyObject *op)
 {
     PGTrackObject *self = (PGTrackObject *)op;
 
-    /* If clearing -> dropping refs to callback stuff, lets remove the
-     * callback. */
-    MIX_SetTrackStoppedCallback(self->track, NULL, NULL);
+    /* Tear down the SDL track FIRST, while mixer_obj (and any source_obj) are
+     * still held: MIX_DestroyTrack needs the owning mixer alive. The guard
+     * makes this idempotent, since dealloc calls clear again after the GC may
+     * have already cleared us.
+     * This is useful https://docs.python.org/3/c-api/lifecycle.html */
+    if (self->track != NULL) {
+        /* Remove the stopped callback before destroying the track so it can't
+         * fire into a half-torn-down object. */
+        MIX_SetTrackStoppedCallback(self->track, NULL, NULL);
+        MIX_DestroyTrack(self->track);
+        self->track = NULL;
+    }
+
+    /* Now that the SDL track is gone, it's safe to drop the Python references
+     * it depended on. */
     Py_CLEAR(self->stopped_callback);
     Py_CLEAR(self->stopped_callback_userdata);
-
-    MIX_DestroyTrack(self->track);
-    self->track = NULL;
     Py_CLEAR(self->mixer_obj);
     Py_CLEAR(self->source_obj);
 
